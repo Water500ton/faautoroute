@@ -1,96 +1,97 @@
-# AutoRoute 交接文档
+# FlightAssistant AutoRoute — WorkBuddy 交接
 
-## 1. 当前状态
+> 交接版本：`1.1.7+mc1.21.1`  
+> 代码基线：`main@d626c56`  
+> 交接时间：2026-11-12  
+> 先读本文；旧交接里的“不是 Git 仓库 / 1.1.0 / docs 截图”等内容已过时。
 
-- 项目：**FlightAssistant AutoRoute**
-- 版本：`1.1.7+mc1.21.1`
-- 目标环境：Minecraft **1.21.1** / Fabric
-- 项目路径：`/home/Water500t/Documents/deepseek-harness/default-workspace/faautoroute`
-- 状态：**已构建、已实机启动测试、可交付**
-- 当前不是 Git 仓库，没有提交历史
+## 0. TL;DR
 
-最终产物：
+- 这是一个 **Minecraft 1.21.1 / Fabric 客户端模组**，为 **FlightAssistant 3.0.x** 自动规划地形感知航线，并写入其 FMS。
+- 代码已推到：<https://github.com/Water500ton/faautoroute>
+- 当前可交付 jar：`dist/faautoroute-1.1.7+mc1.21.1.jar`
+- 核心能力：GUI 规划、地形净空、自动降落、盘旋下降、低空拉平/减速、AP/AT 同步、Xaero 航点联动。
+- **尚未发布到 Modrinth**；简介和依赖清单已准备好（见 `MODRINTH.md`）。
+- 主要未完成项：**1.1.7 的完整自然地形落地还没有干净复测**；落地精度和最后速度仍需调参。
+
+## 1. 项目与交付物
+
+| 项 | 内容 |
+| --- | --- |
+| 项目名 | FlightAssistant AutoRoute |
+| 版本 | `1.1.7+mc1.21.1` |
+| 环境 | Minecraft 1.21 – 1.21.1 / Fabric / Java 21 |
+| 仓库 | <https://github.com/Water500ton/faautoroute> |
+| 分支/提交 | `main` / `d626c56` |
+| 许可证 | MIT |
+| 发布状态 | 未上传 Modrinth |
+| 项目性质 | Vibecoding / 实验性项目 |
+
+本地交付：
 
 | 文件 | SHA-256 |
 | --- | --- |
-| `dist/faautoroute-1.1.7+mc1.21.1.jar` | `56bc91d0e4ddf643c49dce7173e8db11d951c62e1e9c2e638c4ed9fa18b279a3` |
-| `dist/faautoroute-1.1.7+mc1.21.1-sources.jar` | `16f4802772fc8a6bdd418c7459050052c79166fb5ecdfce2695e9ddef916f0dc` |
+| `dist/faautoroute-1.1.7+mc1.21.1.jar` | `7bab99c2a3577337b196b3db7bc911cb6917603028df3a2e6410f2673148b0bd` |
+| `dist/faautoroute-1.1.7+mc1.21.1-sources.jar` | `f91dfb86f674668f767cc843726427121b788ac0c17a60334a43d680dec1381f` |
 
-依赖（运行环境）：
+说明：
 
-- Fabric Loader >= 0.16.10
-- Fabric API（1.21.1）
-- FlightAssistant **3.0.x**（编译/测试使用 3.0.1）
-- Architectury API 13.x
-- Fabric Language Kotlin
-- Yet Another Config Lib（FlightAssistant 需要）
-- Xaero's Minimap / World Map（可选，地图联动）
+- `dist/` 被 `.gitignore` 排除，**不在仓库里**；jar 在本地，也已通过微信发给用户。
+- `README.md` 英文默认，`README.zh-CN.md` 中文；顶部语言互切。
+- `MODRINTH.md` 是可直接粘贴到 Modrinth Description 的英文正文。
+- 图标为用户指定的纸飞机版本：`icon.svg` / `icon-512.png` / `src/main/resources/assets/faautoroute/icon.png`。
 
-## 2. 已完成功能
+## 2. 依赖（Modrinth 发布用）
 
-### 基础规划
+必需：
 
-- 客户端命令 `/autoroute` 和 **F8** 打开 GUI
-- 从当前位置到目标自动生成：
-  - 爬升点
-  - 巡航点（约每 512 格）
-  - 下降顶点 TOD
-  - 最后进近点
-  - 可选到达/自动降落数据
-- 地形感知：沿航迹左右各 48 格采样已加载区块高度图
-- 默认至少 50 格地形净空；下界高度上限 Y=118
-- 未加载区块会使用保守巡航高度并提示
-- 规划结果写入 FlightAssistant `FlightPlanComputer`
+- Fabric API `0.102.0+1.21.1`（或兼容版本）
+- FlightAssistant `3.0.1+mc1.21.1-fabric`（3.0.x；编译针对 3.0.1）
+- Architectury API `13.0.8`（13.x）
+- Fabric Language Kotlin `1.13.0+kotlin.2.1.0`
+- Yet Another Config Lib `3.6.2+1.21-fabric`
 
-### 多途经点
+可选：
 
-- `RouteOptions.viaPoints` 支持按顺序经过多个 `RoutePoint`
-- 每个途经点生成转弯航点
-- GUI `Waypoints` 界面：
-  - `Add current`：把当前坐标加入航线
-  - `Add Xaero`：从 Xaero 航点中选择
-  - 点击列表项移除
-  - `Remove` / `Clear all`
-- 如果显式加入当前位置，它会作为 `ORIGIN` 航点；下一个航点作为 `TARGET`
-- 命令：
+- Xaero's Minimap / Xaero's World Map
+
+运行环境：Fabric Loader `0.16.10+`，Java 21。仅客户端，不需要装到服务端。
+
+## 3. 当前功能
+
+- `F8` / `/autoroute` 打开 GUI。
+- 目标 X/Z、巡航高度（留空自动）、目标速度、Auto land、Arm AP。
+- 多途经点：
+  - GUI `Waypoints → Add current`
+  - `Add Xaero`
   - `/autoroute addhere`
   - `/autoroute waypoints`
   - `/autoroute clearvia`
+- Xaero：
+  - 读取 Xaero 航点作为目标/途经点。
+  - 发布临时航点 `AR START`、`AR 1...`、`AR DEST`。
+- 命令：
+  - `/autoroute plan <x> <z> [cruise] [speed]`
+  - `/autoroute land <x> <z> [cruise] [speed]`
+  - `/autoroute ap`
+  - `/autoroute info`
+  - `/autoroute clear`
+  - `/autoroute <x> <z> [cruise] [speed]`（plan 快捷形式）
 
-### GUI
-
-- 主界面：目标 X/Z、巡航高度（留空自动）、速度、自动降落、自动驾驶开关
-- 2D 航线预览、距离、巡航高度、航点数、途经点数、ETA、警告
-- 响应式布局：在 854×480 / GUI Scale 3 下已测试完整显示
-- 小窗口使用短标签；大窗口使用完整标签
-- 渲染顺序已修复：标题和字段标签不会再变暗
-- `Land` / `AP` 为可切换按钮，带 tooltip
-
-### Xaero 联动
-
-- 反射调用 Xaero 第三方航点 API，不强制编译依赖 Xaero
-- 规划成功后，把路线发布为 Xaero **临时航点**：
-  - `AR START`
-  - `AR 1`、`AR 2`...
-  - `AR DEST`
-- `Clear` 会清除临时航线
-- Xaero 航点选择器读取当前世界持久化航点
-- 已用 Xaero Minimap **26.6.0** / World Map **1.47.0** 实测
-
-## 3. 关键文件
+## 4. 关键文件
 
 ```text
 src/main/java/com/water500t/faautoroute/
-  AutoRouteClient.java        客户端入口、F8、ComputerBus 捕获、viaPoints 静态列表
-  AutoRouteCommands.java      /autoroute 命令树
-  RoutePlanner.java           多段航迹、地形采样、航点/进近生成
-  RoutePlannerScreen.java     主 GUI（响应式）
-  WaypointListScreen.java     途经点管理
-  XaeroWaypointScreen.java    Xaero 航点选择器
-  XaeroIntegration.java       Xaero 反射联动
-  RouteOptions.java           规划参数（含 viaPoints）
-  RoutePoint.java             途经点
-  RouteResult.java            规划结果/预览数据
+  AutoRouteClient.java      客户端入口、F8、AP/AT 模式同步、pending landing、flare/brake
+  AutoRouteCommands.java    /autoroute 命令树
+  RoutePlanner.java         地形采样、航段/进近/盘旋生成、目标区块检查
+  RoutePlannerScreen.java   主 GUI
+  WaypointListScreen.java   途经点管理
+  XaeroWaypointScreen.java  Xaero 航点选择器
+  XaeroIntegration.java     Xaero 第三方航点反射桥接
+  RouteOptions.java         规划参数
+  RoutePoint.java           途经点
+  RouteResult.java          规划结果/预览
   RoutePlanningException.java
 ```
 
@@ -103,111 +104,132 @@ src/main/resources/fabric.mod.json
 src/main/resources/assets/faautoroute/icon.png
 ```
 
-截图与测试记录：
+## 5. 飞行控制逻辑（重点）
 
-- `README.md` 的“实机测试记录”
-- `docs/gui.png`
-- `docs/gui-toggle.png`
-- `docs/xaero-waypoints.png`
-- `docs/command.png`
+### 5.1 AP/AT 同步
 
-## 4. 构建环境
+`AutoRouteClient.syncPlanModes()` 每 tick 把 FlightAssistant 的：
 
-当前系统：
+- vertical mode
+- lateral mode
+- thrust mode
 
-- 工作区：`/home/Water500t/Documents/deepseek-harness/default-workspace`
-- `$HOME` 是只读的，必须设置 `GRADLE_USER_HOME` 到工作区
-- JDK 21：`/home/Water500t/android/aviumui/prebuilts/jdk/jdk21/linux-x86`
-- Gradle Wrapper：9.2.1
-- Loom：1.14.6
-- 代理：`127.0.0.1:7897`（如果仍然可用；否则省略代理参数）
+同步到当前 `FlightPlanComputer`。如果只加载计划但不持续同步，FA 会保持旧模式，飞机不会跟航线。
 
-重新构建：
+`/autoroute ap` 调用 `enableAutopilot()`，显式接通 AP + AT。
+
+### 5.2 目标区块与延迟自动降落
+
+`RoutePlanner.isChunkLoaded()` 使用 `ChunkSource.hasChunk()`；
+`heightAt()` 在高度图异常时做了**直列方块扫描兜底**，避免区块已加载但高度图为空时误判“目标区块未加载”。
+
+目标区块未加载时：
+
+- 先装订过境计划；
+- 在 `AutoRouteClient.tickPendingLanding()` 中等待；
+- 目标加载且距离 ≤ 512 后重新规划自动降落。
+
+### 5.3 盘旋下降
+
+`RoutePlanner.addHoldingApproach()`：
+
+- 条件：直线距离不足以完成下降。
+- 在目标上空生成 4 点下降盘旋（半径 240），再进入最后进近。
+- 触发时计划通常为 7 个航点，HUD 会提示“已加入盘旋下降”。
+
+### 5.4 低空拉平 / 减速（1.1.7）
+
+`AutoRouteClient` 中：
+
+- `shouldBrakeLanding()`：距目标 < 120 格、离地 < 25 格、水平速度 > 12 m/s
+  - 选择 `LANDING_BRAKE_MODE = VerticalSpeedVerticalMode(+1.0)`
+  - 抬头/拉平，先耗掉水平速度。
+- `shouldFlare()`：距目标 < 80 格、离地 < 18 格、正在下降
+  - 选择 `FLARE_MODE = VerticalSpeedVerticalMode(-1.5)`
+  - 以约 -1.5 m/s 下沉接地。
+- **1.1.7 已撤掉高空/巡航段的 -3 m/s 下降限速**；正常巡航下降按计划，不再被强制压慢。
+
+调参入口就在 `AutoRouteClient` 顶部的 `FLARE_MODE` / `LANDING_BRAKE_MODE` 和 `shouldFlare()` / `shouldBrakeLanding()` 阈值。
+
+## 6. 构建
+
+要求 JDK 21。当前开发机：
 
 ```bash
 cd /home/Water500t/Documents/deepseek-harness/default-workspace/faautoroute
-mkdir -p .gradle
-cat > .gradle/gradle.properties <<'GRADLE'
-systemProp.http.proxyHost=127.0.0.1
-systemProp.http.proxyPort=7897
-systemProp.https.proxyHost=127.0.0.1
-systemProp.https.proxyPort=7897
-GRADLE
 
 JAVA_HOME=/home/Water500t/android/aviumui/prebuilts/jdk/jdk21/linux-x86 \
 GRADLE_USER_HOME=$PWD/.gradle \
 GRADLE_OPTS='-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=7897 -Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=7897' \
-./gradlew clean build
+./gradlew build --no-daemon
 ```
 
-产物：`build/libs/faautoroute-1.1.0+mc1.21.1.jar`。
+产物：
 
-> `.gradle/`、`build/` 已在交付前删除，首次构建会重新下载依赖；没有代理时可能很慢。
+```text
+build/libs/faautoroute-1.1.7+mc1.21.1.jar
+build/libs/faautoroute-1.1.7+mc1.21.1-sources.jar
+```
 
-## 5. 实机测试结果
+如果没有代理，去掉 `GRADLE_OPTS` 和 `.gradle/gradle.properties` 里的代理配置。首次构建会下载 Minecraft/Mappings/依赖。
 
-在独立测试实例中实际启动客户端并进入世界：
+## 7. 测试环境与已验证结果
 
-- 客户端正常启动，83 个模组加载，`faautoroute 1.1.0+mc1.21.1` 在列
-- `F8` 打开 GUI
-- `/autoroute 1000 1000` 成功：
-  - `AutoRoute: loaded 3 waypoints, cruise Y=213, 1411 blocks.`
-  - `267 terrain samples were in unloaded chunks; cruise altitude was set conservatively.`
-- `Waypoints → Add current` 成功
-- `Land` / `AP` 切换成功
-- Xaero 航点列表出现 `AR START`、`AR 1`、`AR 2`、`AR 3`
-- Xaero 世界地图显示临时航点
-- 测试中发现并修复：
-  - GUI Scale 3 下按钮裁切 → 响应式布局 + 短标签
-  - 自绘标题/标签发暗 → 调整 `super.render()` 顺序
+独立测试实例：`game-test/`，世界 `新的世界`，不碰用户原 `.minecraft`。
 
-## 5.1 1.1.3 追加修复
+已做过的设置：
 
-- AP/AT 模式每 tick 同步到计划；新增 `/autoroute ap`。
-- 目标区块检测改为 `ChunkSource.hasChunk`，并在高度图为空时做直列扫描兜底。
-- 目标未加载时先装订过境计划，目标加载后自动补全自动降落。
-- 自动降落时根据可用下降距离限制巡航高度；无法满足地形净空时抛出 `descent_too_steep`，不再装订不可落地的进近。
-- 实测：自动降落计划可以在平台区块加载后装订；AP 模式显示为 `航迹导航/自动推力/自动驾驶`。
-- 已加入盘旋下降：直线距离不足时会在目标上空生成 4 点下降盘旋，再进入最后进近。
-- 实测盘旋计划能装订（7 个航点）；但测试飞机在盘旋中掉到平台下方（Y≈205，平台 Y=220），HUD 报 `推力 无可用推力源`，无法再爬升接地。
-- 已改用自然生成地形测试：目标为 `/locate biome minecraft:plains` 找到的 `1273,1655`，计划 3 个航点、巡航 Y=101、距离 239 格。
-- 实测在自然草坡 `1286,112,1724` 触地停住（速度 0、存活、无平台），比目标短约 70 格；说明自然地面自动降落链路已跑通，但落点精度仍受地形/树影响。
-- 证据：`docs/natural-landing.png`。
-- 1.1.4 已加入最后拉平：距离目标 80 格内、离地 18 格以下且正在下降时，临时切换到 -1.5 m/s 的垂直速度模式。
-- 拉平版实机验证通过：keepInventory=true，Y≈288 空中接管，7 航点盘旋下降，最终在自然草坡 `1273,76,1627` 接地停住（目标 `1273,1655`，短 28 格，速度 0，存活）。相比 1.1.3 的 69 格偏差明显缩小。
-- 证据：`docs/natural-landing-flare.png`。
-- 1.1.7 撤掉高空/巡航阶段的下降限速，只在目标 120 格内、离地 25 格内做接地拉平减速。
+- `keepInventory=true`。
+- 测试角色有鞘翅 + 320 烟花。
+- 测试 harness：`robot/Chat2.java`（可靠聊天输入）、`robot/Keys.java`、`robot/XWin.java`。
+- 启动：`game-test/launch.sh --quickPlaySingleplayer '新的世界'`。
 
-## 6. 已知风险 / 未完成测试
+已验证：
 
-1. **未实际飞完整条航线**，也未在生存模式实测自动降落全过程。
-2. **未测试从持久化 Xaero 航点中选择**：测试世界没有持久化 Xaero 航点，只验证了空列表和临时航线发布。
-3. Xaero 联动使用反射，已针对 **26.6.0** 验证；升级 Xaero 后方法名/构造器可能变化。
-4. 使用 FlightAssistant 的 `impl` 包（`FlightPlanComputer` 等），属于可访问但不保证稳定的 API；FlightAssistant 大版本升级后需重新适配。
-5. 规划只读取客户端已加载区块；长航线会保守抬高巡航高度。
-6. 下界自动降落被禁用（高度图会看到顶部基岩）。
-7. 自动降落只检查地形高度/坡度/水/树叶/上方障碍，不保证建筑、服务器限制、反作弊或烟花数量。
-8. 极端小窗口/GUI 缩放仍可能裁切短标签，未做完整的最小尺寸测试。
+- GUI、F8、命令、途经点、Xaero 临时航点。
+- 自动降落计划、AP/AT 接通。
+- **1.1.4 拉平版**在自然草坡接地：
+  - 目标 `1273,1655`
+  - 实际 `1273,76,1627`
+  - 短约 28 格，地速 0，满血，无平台。
+- 1.1.5 下降限速、1.1.6 接地减速做过部分飞行测试；**1.1.7 尚未完成一次干净的自然地形落地复测**。
 
-## 7. 建议的下一步
+不要把“1.1.4 的 28 格落地”误写成“1.1.7 已验证”。
 
-优先级从高到低：
+## 8. 已知问题 / 风险
 
-1. 在测试世界创建一个持久化 Xaero 航点，完整验证“Xaero → 目的地/途经点”的选择流程。
-2. 在超平坦/创造世界测试 `Auto land`：最后进近、最低高度、复飞、实际接地。
-3. 测试 2–4 个途经点的折线航线，确认转弯航点和预览地图。
-4. 在真实服务器测试 FlightAssistant 3.0.1 + Fabric API + Xaero 的类加载/反射兼容性。
-5. 给 `RoutePlanner` 增加纯数学单元测试（航段长度、TOD、最后进近顺序、去重）。
-6. 考虑把净空（50 格）、最大距离（16000）、航点间距做成配置项。
-7. 可选：添加 Mod Menu 配置页；当前没有。
-8. 如果要发布，补 `modrinth`/`curseforge` 发布配置，并确认 FlightAssistant 的 LGPL 合规说明。
+1. **1.1.7 完整落地未复测**：最后 brake/flare 可能造成拉平过高、复飞或再次硬接地；需要实机调阈值。
+2. 接地精度受地形坡度、树、鞘翅滑跑距离影响；28 格是 1.1.4 的结果，不是保证值。
+3. 测试 harness 的聊天输入曾多次截断命令（尤其数字/符号）；测试时先确认 `Chat2` 生成的命令完整。
+4. `XaeroIntegration` 是反射实现，针对 Xaero Minimap 26.6.0 / World Map 1.47.0；升级后需回归。
+5. 使用 FlightAssistant `impl` 包；FA 大版本升级可能破坏兼容。
+6. 自动降落只检查地形高度/坡度/水/树叶/障碍，不保证建筑、服务器规则、反作弊、烟花数量。
+7. 下界禁用自动降落（高度图会读到屋顶基岩）。
+8. 规划只读客户端已加载区块；长航线会保守抬高巡航高度。
+9. 未发布 Modrinth；`MODRINTH.md` 只是文案，还没有上传。
 
-## 8. 注意事项
+## 9. 建议下一步（按优先级）
 
-- 不要覆盖用户原来的 `.minecraft`；测试应使用独立 gameDir。
-- 当前交付目录已清理 `.gradle`、`build`、`game-test`，只保留源码、dist 和 docs。
-- 修改 GUI 后重点回归：
-  - 854×480 / GUI Scale 3
-  - 1920×1080 / GUI Scale 4
-  - 进入世界后 F8
-  - `Waypoints` / `Xaero` / `Land` / `AP` 按钮
+1. **先复测 1.1.7 完整落地**：自然地形、Y=400 起跳、keepInventory、记录 HUD 地速/垂直速度/落点/血量。
+2. 根据结果调 `LANDING_BRAKE_MODE` 的 +1.0 和 `FLARE_MODE` 的 -1.5；目标是接地水平速度低、不过度拉平、不冲出目标。
+3. 补一次 2–4 个途经点的完整航线测试。
+4. 发布 Modrinth：按 `MODRINTH.md` 的 summary/description，依赖见本文第 2 节，上传 `dist/faautoroute-1.1.7+mc1.21.1.jar`。
+5. 补 `RoutePlanner` 的纯数学测试（航段/TOD/进近/盘旋顺序）。
+6. 复核 README 与实际行为；README 已移除测试记录和截图，不要再加回去，除非用户要求。
+
+## 10. 接手检查清单
+
+```bash
+cd /home/Water500t/Documents/deepseek-harness/default-workspace/faautoroute
+git pull
+git log --oneline -3
+sha256sum dist/faautoroute-1.1.7+mc1.21.1.jar
+```
+
+确认：
+
+- 当前提交是 `d626c56` 或之后；
+- jar 哈希与第 1 节一致；
+- 没覆盖用户原 `.minecraft`；
+- 测试前先备份/确认 `game-test` 世界与装备；
+- 不要声称 1.1.7 已完成未验证的落地。

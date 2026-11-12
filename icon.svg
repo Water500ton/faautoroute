@@ -87,39 +87,13 @@
     <circle cx="420" cy="148" r="24" fill="#07111f" stroke="#fb7185" stroke-width="8"/>
     <circle cx="420" cy="148" r="8" fill="#fecdd3"/>
 
-    <!-- Minecraft-style elytra: two vertical shells with a top collar and a central gap -->
-    <g transform="translate(300 262) rotate(-8) scale(13) translate(-8 -8)" shape-rendering="crispEdges">
-      <!-- top collar -->
-      <path d="M4 1 H12 V2 H4 Z" fill="#343946"/>
-      <path d="M3 2 H13 V3 H3 Z" fill="#4b505d"/>
-      <path d="M3 3 H7 V4 H3 Z" fill="#5b6070"/>
-      <path d="M9 3 H13 V4 H9 Z" fill="#5b6070"/>
-
-      <!-- left shell -->
-      <path d="M1 3 H7 V15 H4 L1 12 Z" fill="#2f3542"/>
-      <path d="M2 4 H7 V14 H4 L2 12 Z" fill="#b9bccb"/>
-      <path d="M2 4 H3 V12 H2 Z" fill="#e2e4f0"/>
-      <path d="M5 4 H6 V12 H5 Z" fill="#747a8c"/>
-      <path d="M3 8 H6 V11 H3 Z" fill="#b9a7e0"/>
-      <path d="M4 5 H6 V7 H4 Z" fill="#cfc2ee"/>
-      <path d="M3 12 H5 V14 H3 Z" fill="#9b8bd0"/>
-      <path d="M2 12 H4 V13 H2 Z" fill="#5c6170"/>
-      <path d="M3 14 H5 V15 H3 Z" fill="#4a4f5c"/>
-
-      <!-- right shell, slightly shadowed -->
-      <path d="M15 3 H9 V15 H12 L15 12 Z" fill="#2f3542"/>
-      <path d="M14 4 H9 V14 H12 L14 12 Z" fill="#a5a8ba"/>
-      <path d="M13 4 H14 V12 H13 Z" fill="#d3d6e4"/>
-      <path d="M10 4 H11 V12 H10 Z" fill="#686e80"/>
-      <path d="M10 8 H13 V11 H10 Z" fill="#a998d6"/>
-      <path d="M10 5 H12 V7 H10 Z" fill="#c2b4e7"/>
-      <path d="M11 12 H13 V14 H11 Z" fill="#8f7ec4"/>
-      <path d="M12 12 H14 V13 H12 Z" fill="#535868"/>
-      <path d="M11 14 H13 V15 H11 Z" fill="#424755"/>
-
-      <!-- central gap / hinge -->
-      <path d="M7 3 H9 V15 H7 Z" fill="#0a1724"/>
-      <path d="M7 2 H9 V4 H7 Z" fill="#222733"/>
+    <!-- paper plane: flying up the route -->
+    <g transform="translate(322 245) rotate(-34)">
+      <path d="M0 -54 L58 48 L0 25 L-50 48 Z" fill="url(#wing)" stroke="#e0f2fe" stroke-width="2"/>
+      <path d="M0 -54 L58 48 L0 25 Z" fill="#f8fafc"/>
+      <path d="M0 -54 L-50 48 L0 25 Z" fill="#7dd3fc"/>
+      <path d="M0 25 L-50 48 L-18 20 Z" fill="#38bdf8"/>
+      <path d="M0 -54 L0 25" stroke="#0ea5e9" stroke-width="2.5" opacity="0.55"/>
     </g>
 
     <!-- heading ticks -->

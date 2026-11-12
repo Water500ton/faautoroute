@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset="0.55" stop-color="#0b2230"/>
+      <stop offset="1" stop-color="#123444"/>
+    </linearGradient>
+    <linearGradient id="route" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="0.5" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#a5f3fc"/>
+    </linearGradient>
+    <linearGradient id="wing" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#bae6fd"/>
+    </linearGradient>
+    <linearGradient id="terrain1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f3d3a"/>
+      <stop offset="1" stop-color="#08201f"/>
+    </linearGradient>
+    <linearGradient id="terrain2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#14524a"/>
+      <stop offset="1" stop-color="#0b2b27"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+    <clipPath id="round">
+      <rect x="8" y="8" width="496" height="496" rx="112"/>
+    </clipPath>
+  </defs>
+
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="url(#bg)"/>
+  <g clip-path="url(#round)" opacity="0.9">
+    <circle cx="400" cy="92" r="150" fill="#0ea5e9" opacity="0.10" filter="url(#soft)"/>
+    <circle cx="96" cy="400" r="170" fill="#10b981" opacity="0.08" filter="url(#soft)"/>
+
+    <!-- faint chart grid -->
+    <g stroke="#7dd3fc" stroke-width="1.2" opacity="0.10">
+      <path d="M48 8V504 M112 8V504 M176 8V504 M240 8V504 M304 8V504 M368 8V504 M432 8V504"/>
+      <path d="M8 48H504 M8 112H504 M8 176H504 M8 240H504 M8 304H504 M8 368H504 M8 432H504"/>
+    </g>
+
+    <!-- terrain layers -->
+    <path d="M8 356 C 72 330 112 350 168 322 C 226 292 268 336 326 310 C 386 282 438 306 504 274 L504 504 L8 504 Z" fill="url(#terrain1)"/>
+    <path d="M8 404 C 66 386 112 398 170 372 C 238 342 284 382 346 356 C 410 330 456 344 504 324 L504 504 L8 504 Z" fill="url(#terrain2)"/>
+    <path d="M8 404 C 66 386 112 398 170 372 C 238 342 284 382 346 356 C 410 330 456 344 504 324" fill="none" stroke="#2dd4bf" stroke-width="2.5" opacity="0.55"/>
+    <path d="M8 446 C 78 426 128 438 190 414 C 254 388 308 424 370 400 C 426 378 470 388 504 374" fill="none" stroke="#34d399" stroke-width="1.5" opacity="0.22"/>
+
+    <!-- route glow -->
+    <path d="M96 368 C 146 356 142 300 204 286 C 264 272 268 332 320 292 C 370 254 362 198 420 148"
+          fill="none" stroke="#22d3ee" stroke-width="24" stroke-linecap="round" opacity="0.22" filter="url(#glow)"/>
+
+    <!-- route -->
+    <path d="M96 368 C 146 356 142 300 204 286 C 264 272 268 332 320 292 C 370 254 362 198 420 148"
+          fill="none" stroke="url(#route)" stroke-width="13" stroke-linecap="round"/>
+
+    <!-- dashed center line -->
+    <path d="M96 368 C 146 356 142 300 204 286 C 264 272 268 332 320 292 C 370 254 362 198 420 148"
+          fill="none" stroke="#ecfeff" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="2 20" opacity="0.9"/>
+
+    <!-- waypoint shadows -->
+    <g opacity="0.5" filter="url(#glow)">
+      <circle cx="96" cy="368" r="18" fill="#34d399"/>
+      <circle cx="204" cy="286" r="12" fill="#fbbf24"/>
+      <circle cx="320" cy="292" r="12" fill="#fbbf24"/>
+      <circle cx="420" cy="148" r="23" fill="#fb7185"/>
+    </g>
+
+    <!-- waypoints -->
+    <circle cx="96" cy="368" r="18" fill="#07111f" stroke="#34d399" stroke-width="7"/>
+    <circle cx="96" cy="368" r="6" fill="#a7f3d0"/>
+
+    <circle cx="204" cy="286" r="12" fill="#07111f" stroke="#fbbf24" stroke-width="6"/>
+    <circle cx="204" cy="286" r="4" fill="#fde68a"/>
+
+    <circle cx="320" cy="292" r="12" fill="#07111f" stroke="#fbbf24" stroke-width="6"/>
+    <circle cx="320" cy="292" r="4" fill="#fde68a"/>
+
+    <circle cx="420" cy="148" r="24" fill="#07111f" stroke="#fb7185" stroke-width="8"/>
+    <circle cx="420" cy="148" r="8" fill="#fecdd3"/>
+
+    <!-- paper plane: flying up the route -->
+    <g transform="translate(322 245) rotate(-34)">
+      <path d="M0 -54 L58 48 L0 25 L-50 48 Z" fill="url(#wing)" stroke="#e0f2fe" stroke-width="2"/>
+      <path d="M0 -54 L58 48 L0 25 Z" fill="#f8fafc"/>
+      <path d="M0 -54 L-50 48 L0 25 Z" fill="#7dd3fc"/>
+      <path d="M0 25 L-50 48 L-18 20 Z" fill="#38bdf8"/>
+      <path d="M0 -54 L0 25" stroke="#0ea5e9" stroke-width="2.5" opacity="0.55"/>
+    </g>
+
+    <!-- heading ticks -->
+    <g stroke="#a5f3fc" stroke-width="4" stroke-linecap="round" opacity="0.8">
+      <path d="M448 92 L448 118"/>
+      <path d="M448 92 L436 110"/>
+      <path d="M448 92 L460 110"/>
+    </g>
+  </g>
+
+  <!-- inner border -->
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="none" stroke="#7dd3fc" stroke-width="2" opacity="0.18"/>
+  <rect x="24" y="24" width="464" height="464" rx="98" fill="none" stroke="#7dd3fc" stroke-width="1" opacity="0.10"/>
+</svg>

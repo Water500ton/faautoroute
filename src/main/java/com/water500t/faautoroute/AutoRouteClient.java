@@ -29,6 +29,8 @@ public final class AutoRouteClient implements ClientModInitializer {
     private static final double FINALIZE_RANGE = 512.0;
     private static final double MIN_FINALIZE_RANGE = 48.0;
     private static final LandingLaw LANDING_LAW = new LandingLaw(LandingLaw.Config.DEFAULT);
+    private static final double TERRAIN_SAMPLE_STEP = 8.0;
+    private static final double TERRAIN_SAMPLE_RANGE = 320.0;
     private static final java.util.Map<Long, AutoFlightComputer.VerticalMode> VERTICAL_MODE_CACHE =
             new java.util.HashMap<>();
 
@@ -135,14 +137,47 @@ public final class AutoRouteClient implements ClientModInitializer {
         int ground = client.level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
         double horizontalSpeed = Math.hypot(client.player.getDeltaMovement().x,
                 client.player.getDeltaMovement().z) * 20.0;
+        double distance = Math.hypot(client.player.getX() - arrival.getCoordinatesX(),
+                client.player.getZ() - arrival.getCoordinatesZ());
         return new LandingLaw.State(
                 client.player.getY() - ground,
                 client.player.getY() - arrival.getElevation(),
                 client.player.getDeltaMovement().y * 20.0,
                 horizontalSpeed,
-                Math.hypot(client.player.getX() - arrival.getCoordinatesX(),
-                        client.player.getZ() - arrival.getCoordinatesZ()),
+                distance,
+                terrainSinkLimit(client, arrival, horizontalSpeed, distance),
                 client.player.onGround());
+    }
+
+    /**
+     * Steepest sink rate that keeps the aircraft above ground standing between
+     * the aircraft and the aim point, sampled every {@value #TERRAIN_SAMPLE_STEP}
+     * blocks along the track. Infinite when nothing constrains the descent.
+     */
+    private static double terrainSinkLimit(Minecraft client, FlightPlanComputer.ArrivalData arrival,
+                                           double horizontalSpeed, double distance) {
+        if (distance < 1.0) {
+            return Double.POSITIVE_INFINITY;
+        }
+        double ux = (arrival.getCoordinatesX() - client.player.getX()) / distance;
+        double uz = (arrival.getCoordinatesZ() - client.player.getZ()) / distance;
+        double aimElevation = arrival.getElevation();
+        LandingLaw.Config config = LandingLaw.Config.DEFAULT;
+        double limit = Double.POSITIVE_INFINITY;
+        for (double ahead = TERRAIN_SAMPLE_STEP;
+                ahead < distance && ahead <= TERRAIN_SAMPLE_RANGE;
+                ahead += ahead < 128.0 ? TERRAIN_SAMPLE_STEP : TERRAIN_SAMPLE_STEP * 4) {
+            int sx = Mth.floor(client.player.getX() + ux * ahead);
+            int sz = Mth.floor(client.player.getZ() + uz * ahead);
+            if (!client.level.getChunkSource().hasChunk(sx >> 4, sz >> 4)) {
+                continue;
+            }
+            int groundAhead = client.level.getHeight(
+                    Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, sx, sz);
+            double constraint = LandingLaw.terrainConstraint(groundAhead, aimElevation, config);
+            limit = Math.min(limit, (client.player.getY() - constraint) * horizontalSpeed / ahead);
+        }
+        return limit;
     }
 
     /** Cached vertical-speed mode so the tick loop does not allocate one per frame. */
@@ -156,6 +191,7 @@ public final class AutoRouteClient implements ClientModInitializer {
         return switch (action) {
             case BRAKE -> "mode.faautoroute.landing_brake";
             case FLARE -> "mode.faautoroute.flare";
+            case TERRAIN -> "mode.faautoroute.terrain";
             default -> "mode.faautoroute.rollout";
         };
     }

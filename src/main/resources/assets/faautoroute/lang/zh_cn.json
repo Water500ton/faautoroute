@@ -107,5 +107,6 @@
   "mode.faautoroute.descent_limit": "限速下降",
   "mode.faautoroute.landing_brake": "接地拉平减速",
   "mode.faautoroute.rollout": "着陆滑跑",
-  "warning.faautoroute.approach_terrain": "最后进近段有比落点高 %s 格的地形，飞机可能在到达目标前就接地。请换一个更开阔的进近方向。"
+  "warning.faautoroute.approach_terrain": "最后进近段有比落点高 %s 格的地形，飞机可能在到达目标前就接地。请换一个更开阔的进近方向。",
+  "mode.faautoroute.terrain": "地形避让"
 }

@@ -20,7 +20,7 @@ A client-side **Minecraft 1.21.1 / Fabric** mod that plans terrain-aware routes 
 - **Terrain aware** — samples loaded client chunks around the route and raises the cruise altitude above the highest terrain in the corridor.
 - **Auto-land** — builds a final approach and FlightAssistant arrival data, with checks for water, lava, leaves, obstacles, and steep ground.
 - **Holding descent** — if the straight-line distance is too short to lose altitude, adds a descending holding pattern over the destination before the final approach.
-- **Landing assist** — for the last few hundred metres the sink target is computed from the remaining height and time to the aim point, so the aircraft converges on the target instead of floating past it; after touchdown the autopilot is released. Normal cruise descent is **not** artificially slowed.
+- **Landing assist** — for the last few hundred metres the sink target is computed from the remaining height and time to the aim point, so the aircraft converges on the target instead of floating past it. Terrain standing above the landing point inside the approach is sampled ahead and avoided; after touchdown the autopilot is released. Normal cruise descent is **not** artificially slowed.
 - **GUI planner** — press `F8` for a 2D preview, coordinate fields, via points, auto-land and autopilot toggles.
 - **Current position as a waypoint** — add the player's current X/Z as a via point.
 - **Xaero integration** — pick Xaero waypoints as destinations/via points, and publish the planned route as temporary Xaero waypoints.

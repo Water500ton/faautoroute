@@ -21,6 +21,13 @@ package com.water500t.faautoroute;
  * time to spare, trading speed for a small height gain instead of a hard
  * deceleration at low altitude.</p>
  *
+ * <p>Terrain between the aircraft and the aim point is handled by a look-ahead
+ * constraint: the caller samples the ground along the track (the caller has the
+ * world; the law does not) and passes the steepest still-safe sink rate as
+ * {@code terrainLimit}. Ground standing above the aim elevation therefore
+ * shallows the descent until it is crossed, and terrain above the aircraft
+ * triggers a climb instead of a controlled flight into a hillside.</p>
+ *
  * <p>The stage is {@code ROLLOUT} after touchdown, which releases the autopilot
  * so the plan cannot keep pushing a grounded aircraft into the ground.</p>
  */
@@ -34,6 +41,8 @@ public final class LandingLaw {
         BRAKE,
         /** Follow the glide path to the aim point. */
         FLARE,
+        /** Clear terrain standing above the aim elevation before the aim point. */
+        TERRAIN,
         /** On the ground: hold altitude target and release the autopilot. */
         ROLLOUT
     }
@@ -50,6 +59,8 @@ public final class LandingLaw {
             double speedBrakeGain,
             double speedBrakeMinTime,
             double taperTime,
+            double terrainMargin,
+            double terrainClimb,
             long releaseDelayTicks
     ) {
         public static final Config DEFAULT = new Config(
@@ -63,17 +74,28 @@ public final class LandingLaw {
                 0.12,   // speedBrakeGain: m/s of sink removed per m/s of excess speed
                 8.0,    // speedBrakeMinTime: only slow down with this much time left
                 0.5,    // taperTime: only smooths the last ~2m, see glidePathSink
+                4.0,    // terrainMargin: clearance kept over terrain sampled ahead
+                1.0,    // terrainClimb: vertical speed used to climb over terrain
                 20L     // releaseDelayTicks: ticks after touchdown before releasing AP
         );
     }
 
-    /** Sampled aircraft state for one tick. */
+    /**
+     * Sampled aircraft state for one tick.
+     *
+     * <p>{@code terrainLimit} is the steepest sink rate (m/s) the caller's
+     * look-ahead terrain sampling allows, or {@link Double#POSITIVE_INFINITY}
+     * when no terrain between the aircraft and the aim point constrains the
+     * descent. Negative values mean terrain ahead is above the aircraft: the
+     * law climbs.</p>
+     */
     public record State(
             double agl,
             double heightAboveAim,
             double verticalSpeed,
             double horizontalSpeed,
             double distanceToAim,
+            double terrainLimit,
             boolean onGround
     ) {
     }
@@ -120,8 +142,40 @@ public final class LandingLaw {
         // Keep the last couple of seconds of descent gentle: never ask for a sink
         // rate that would cross the remaining height faster than taperTime allows.
         sink = Math.min(sink, Math.max(config.touchdownVs(), agl / config.taperTime()));
-        double target = -Math.max(sink, config.touchdownVs());
+        double commanded = Math.max(sink, config.touchdownVs());
+
+        // Terrain look-ahead: ground standing above the aim elevation between
+        // here and the aim point is ground the glide path would fly into. The
+        // caller's terrainLimit caps the descent, and a negative limit means
+        // the terrain is above the aircraft and must be climbed over.
+        double terrainLimit = state.terrainLimit();
+        if (terrainLimit < 0.0) {
+            return new Decision(Action.TERRAIN, config.terrainClimb(), false);
+        }
+        if (terrainLimit < commanded) {
+            // Shallower than the soft-touchdown floor is allowed here: staying
+            // above terrain matters more than a gentle touchdown.
+            return new Decision(Action.TERRAIN, -Math.max(0.0, terrainLimit), false);
+        }
+        double target = -commanded;
         return new Decision(slowing ? Action.BRAKE : Action.FLARE, target, false);
+    }
+
+    /**
+     * Altitude one terrain sample constrains the descent to, given the ground
+     * height there and the aim point's elevation.
+     *
+     * <p>Ground standing clearly above the aim elevation is an obstacle: the
+     * aircraft keeps {@code terrainMargin} over it. Ground that only slopes up
+     * to the aim is the approach surface itself and constrains nothing beyond
+     * the aim elevation, so smooth hillside landings are not floated.</p>
+     */
+    public static double terrainConstraint(double groundHeight, double aimElevation, Config config) {
+        double excess = groundHeight - aimElevation;
+        if (excess > config.terrainMargin()) {
+            return groundHeight + config.terrainMargin();
+        }
+        return aimElevation + Math.max(0.0, excess);
     }
 
     /**

@@ -107,5 +107,6 @@
   "mode.faautoroute.descent_limit": "Descent limited",
   "mode.faautoroute.landing_brake": "Landing brake",
   "mode.faautoroute.rollout": "Rollout",
-  "warning.faautoroute.approach_terrain": "The final approach crosses ground %s blocks above the aim point; the aircraft may touch down before the target. Pick a clearer approach."
+  "warning.faautoroute.approach_terrain": "The final approach crosses ground %s blocks above the aim point; the aircraft may touch down before the target. Pick a clearer approach.",
+  "mode.faautoroute.terrain": "Terrain"
 }

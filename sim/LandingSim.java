@@ -30,6 +30,8 @@ import java.util.Locale;
 public final class LandingSim {
 
     private static final double DT = 0.05;
+    private static final double TERRAIN_SAMPLE_STEP = 8.0;
+    private static final double TERRAIN_SAMPLE_RANGE = 320.0;
 
     /** Glide-model coefficients; every plant is a plausible elytra behaviour. */
     record Plant(String name, double tauVs, double dragC, double liftFromSink, double speedBleedPerClimb) {
@@ -102,26 +104,26 @@ public final class LandingSim {
         LandingLaw.Config config = LandingLaw.Config.DEFAULT;
 
         LandingLaw law = new LandingLaw(config);
-        LandingLaw.Decision grounded = law.evaluate(new LandingLaw.State(0.0, 0.0, 0.0, 0.0, 5.0, true));
+        LandingLaw.Decision grounded = law.evaluate(new LandingLaw.State(0.0, 0.0, 0.0, 0.0, 5.0, Double.POSITIVE_INFINITY, true));
         failures += expect("grounded -> ROLLOUT", grounded.action() == LandingLaw.Action.ROLLOUT);
         failures += expect("grounded does not release AP immediately", !grounded.releaseAutopilot());
 
         boolean released = false;
         for (int i = 0; i < config.releaseDelayTicks(); i++) {
-            released = law.evaluate(new LandingLaw.State(0.0, 0.0, 0.0, 0.0, 5.0, true)).releaseAutopilot();
+            released = law.evaluate(new LandingLaw.State(0.0, 0.0, 0.0, 0.0, 5.0, Double.POSITIVE_INFINITY, true)).releaseAutopilot();
         }
         failures += expect("grounded releases AP after the delay", released);
 
         law.reset();
-        LandingLaw.Decision airborne = law.evaluate(new LandingLaw.State(50.0, 50.0, -1.0, 9.0, 400.0, false));
+        LandingLaw.Decision airborne = law.evaluate(new LandingLaw.State(50.0, 50.0, -1.0, 9.0, 400.0, Double.POSITIVE_INFINITY, false));
         failures += expect("back in the air does not release AP", !airborne.releaseAutopilot());
 
         law.reset();
-        LandingLaw.Decision farAway = law.evaluate(new LandingLaw.State(200.0, 200.0, -1.0, 9.0, 4000.0, false));
+        LandingLaw.Decision farAway = law.evaluate(new LandingLaw.State(200.0, 200.0, -1.0, 9.0, 4000.0, Double.POSITIVE_INFINITY, false));
         failures += expect("outside the landing zone -> NONE", farAway.action() == LandingLaw.Action.NONE);
 
         law.reset();
-        LandingLaw.Decision pastAim = law.evaluate(new LandingLaw.State(12.0, 12.0, -1.5, 10.0, 0.0, false));
+        LandingLaw.Decision pastAim = law.evaluate(new LandingLaw.State(12.0, 12.0, -1.5, 10.0, 0.0, Double.POSITIVE_INFINITY, false));
         failures += expect("past the aim point still descends",
                 pastAim.targetVerticalSpeed() <= -config.touchdownVs() + 1.0E-6);
 
@@ -129,7 +131,7 @@ public final class LandingSim {
         boolean withinBand = true;
         boolean sinked = false;
         for (double agl = 70.0; agl > 0.4; agl -= 0.5) {
-            LandingLaw.Decision decision = law.evaluate(new LandingLaw.State(agl, agl, -1.0, 9.0, agl * 8.0, false));
+            LandingLaw.Decision decision = law.evaluate(new LandingLaw.State(agl, agl, -1.0, 9.0, agl * 8.0, Double.POSITIVE_INFINITY, false));
             if (decision.action() == LandingLaw.Action.NONE) {
                 continue;
             }
@@ -144,9 +146,28 @@ public final class LandingSim {
         failures += expect("glide path actually commands a descent", sinked);
 
         law.reset();
-        LandingLaw.Decision steep = law.evaluate(new LandingLaw.State(20.0, 20.0, -8.0, 10.0, 40.0, false));
+        LandingLaw.Decision steep = law.evaluate(new LandingLaw.State(20.0, 20.0, -8.0, 10.0, 40.0, Double.POSITIVE_INFINITY, false));
         failures += expect("steep entry is clamped, not followed",
                 steep.targetVerticalSpeed() >= -config.maxSink() - 1.0E-6);
+
+        law.reset();
+        LandingLaw.Decision climb = law.evaluate(new LandingLaw.State(
+                30.0, 30.0, -1.0, 9.0, 200.0, -0.5, false));
+        failures += expect("terrain above the aircraft -> TERRAIN climb",
+                climb.action() == LandingLaw.Action.TERRAIN && climb.targetVerticalSpeed() > 0.0);
+
+        law.reset();
+        LandingLaw.Decision capped = law.evaluate(new LandingLaw.State(
+                30.0, 30.0, -1.0, 9.0, 200.0, 0.7, false));
+        failures += expect("terrain limit caps the descent, not the soft floor",
+                capped.action() == LandingLaw.Action.TERRAIN
+                        && Math.abs(capped.targetVerticalSpeed() + 0.7) < 1.0E-6);
+
+        law.reset();
+        LandingLaw.Decision unconstrained = law.evaluate(new LandingLaw.State(
+                30.0, 30.0, -1.0, 9.0, 200.0, 5.0, false));
+        failures += expect("distant terrain does not interfere",
+                unconstrained.action() == LandingLaw.Action.FLARE);
 
         System.out.println(failures == 0 ? "checks passed" : failures + " check(s) failed");
         if (failures > 0) {
@@ -212,14 +233,16 @@ public final class LandingSim {
         section.append("## Terrain sensitivity\n\n");
         section.append("Ground profile relative to the entry ground level, as a fraction of ")
                 .append("the distance to the aim. Plant: baseline.\n\n");
+        section.append("Cells show touchdown distance error / touchdown speed (m, m/s).\n\n");
         section.append("| terrain | ").append(String.join(" | ", Entry.ALL.stream().map(Entry::name).toList()))
                 .append(" |\n");
         section.append("| --- |").append(" ---: |".repeat(Entry.ALL.size())).append('\n');
         for (Terrain terrain : Terrain.ALL) {
             section.append("| ").append(terrain.name()).append(" |");
             for (Entry entry : Entry.ALL) {
-                section.append(String.format(Locale.ROOT, " %+.1f |",
-                        simulate(plant, entry, true, config, terrain).touchdownDistanceError()));
+                Result result = simulate(plant, entry, true, config, terrain);
+                section.append(String.format(Locale.ROOT, " %+.1f/%.1f |",
+                        result.touchdownDistanceError(), result.touchdownSpeed()));
             }
             section.append('\n');
         }
@@ -280,7 +303,8 @@ public final class LandingSim {
                             LandingLaw.Config config = new LandingLaw.Config(
                                     base.engageAgl(), base.engageDistance(), minSink, maxSink,
                                     touchdown, settle, base.speedLimit(), base.speedBrakeGain(),
-                                    base.speedBrakeMinTime(), taper, base.releaseDelayTicks());
+                                    base.speedBrakeMinTime(), taper, base.terrainMargin(),
+                                    base.terrainClimb(), base.releaseDelayTicks());
                             candidates.add(score(config));
                         }
                     }
@@ -349,9 +373,18 @@ public final class LandingSim {
         double agl = height - terrain.ground(0.0);
 
         while (agl > 0.0 && time < 600.0) {
-            double heightAboveAim = height - terrain.ground(1.0);
+            double aimElevation = terrain.ground(1.0);
+            double heightAboveAim = height - aimElevation;
+            double terrainLimit = Double.POSITIVE_INFINITY;
+            for (double ahead = TERRAIN_SAMPLE_STEP;
+                    ahead < distance && ahead <= TERRAIN_SAMPLE_RANGE;
+                    ahead += ahead < 128.0 ? TERRAIN_SAMPLE_STEP : TERRAIN_SAMPLE_STEP * 4) {
+                double groundAhead = terrain.ground((travelled + ahead) / startDistance);
+                double constraint = LandingLaw.terrainConstraint(groundAhead, aimElevation, config);
+                terrainLimit = Math.min(terrainLimit, (height - constraint) * hs / ahead);
+            }
             double commanded = useNewLaw
-                    ? newLawCommand(law, agl, heightAboveAim, distance, hs, vs)
+                    ? newLawCommand(law, agl, heightAboveAim, distance, hs, vs, terrainLimit)
                     : oldLawCommand(agl, distance, hs, vs);
 
             vs += (commanded - vs) * Math.min(1.0, DT / plant.tauVs());
@@ -400,9 +433,9 @@ public final class LandingSim {
     }
 
     private static double newLawCommand(LandingLaw law, double agl, double heightAboveAim,
-                                        double distance, double hs, double vs) {
+                                        double distance, double hs, double vs, double terrainLimit) {
         LandingLaw.Decision decision = law.evaluate(
-                new LandingLaw.State(agl, heightAboveAim, vs, hs, distance, false));
+                new LandingLaw.State(agl, heightAboveAim, vs, hs, distance, terrainLimit, false));
         return switch (decision.action()) {
             case BRAKE, FLARE, ROLLOUT -> decision.targetVerticalSpeed();
             default -> nominalSink(agl, distance, hs);

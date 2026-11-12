@@ -70,6 +70,7 @@ public final class LandingLaw {
     /** Sampled aircraft state for one tick. */
     public record State(
             double agl,
+            double heightAboveAim,
             double verticalSpeed,
             double horizontalSpeed,
             double distanceToAim,
@@ -111,7 +112,7 @@ public final class LandingLaw {
             return new Decision(Action.NONE, 0.0, false);
         }
 
-        double sink = glidePathSink(agl, timeToAim);
+        double sink = glidePathSink(agl, Math.max(0.0, state.heightAboveAim()), timeToAim);
         boolean slowing = horizontalSpeed > config.speedLimit() && timeToAim > config.speedBrakeMinTime();
         if (slowing) {
             sink = Math.max(0.0, sink - config.speedBrakeGain() * (horizontalSpeed - config.speedLimit()));
@@ -123,9 +124,18 @@ public final class LandingLaw {
         return new Decision(slowing ? Action.BRAKE : Action.FLARE, target, false);
     }
 
-    /** Sink rate that puts the aircraft at ground level exactly at the aim point. */
-    private double glidePathSink(double agl, double timeToAim) {
-        double required = agl / Math.max(0.3, timeToAim);
+    /**
+     * Sink rate that puts the aircraft at the aim elevation exactly at the aim
+     * point.
+     *
+     * <p>The path is measured against the aim point's own elevation rather than
+     * the ground under the aircraft, so a valley or a hillside between the
+     * aircraft and the target does not tilt the whole approach: the aircraft
+     * still converges on the same point in space.</p>
+     */
+    private double glidePathSink(double agl, double heightAboveAim, double timeToAim) {
+        double height = heightAboveAim > 0.0 ? heightAboveAim : agl;
+        double required = height / Math.max(0.3, timeToAim);
         return Math.min(config.maxSink(), Math.max(config.minSink(), required));
     }
 }

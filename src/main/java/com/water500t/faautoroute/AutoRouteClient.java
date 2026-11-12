@@ -137,6 +137,7 @@ public final class AutoRouteClient implements ClientModInitializer {
                 client.player.getDeltaMovement().z) * 20.0;
         return new LandingLaw.State(
                 client.player.getY() - ground,
+                client.player.getY() - arrival.getElevation(),
                 client.player.getDeltaMovement().y * 20.0,
                 horizontalSpeed,
                 Math.hypot(client.player.getX() - arrival.getCoordinatesX(),

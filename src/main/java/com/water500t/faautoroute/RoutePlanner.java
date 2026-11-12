@@ -27,6 +27,8 @@ public final class RoutePlanner {
     public static final int TERRAIN_CLEARANCE = 50;
     public static final int CORRIDOR_RADIUS = 48;
     public static final int FINAL_CORRIDOR_RADIUS = 16;
+    /** Highest ground above the aim elevation that a final approach tolerates. */
+    private static final int APPROACH_OBSTRUCTION = 8;
 
     private static final int SAMPLE_STEP = 24;
     private static final int CRUISE_WAYPOINT_SPACING = 512;
@@ -179,6 +181,14 @@ public final class RoutePlanner {
             int finalAltitude = arrivalElevation + (int) Math.round((leg.length - approachDistance) / 10.0) + 10;
             finalAltitude = Math.max(finalAltitude, finalScan.maxHeight() + 20);
             finalAltitude = Math.min(cruise, Math.max(finalAltitude, arrivalElevation + 12));
+
+            // The landing assist descends towards the aim point's elevation, so
+            // terrain standing above that elevation inside the final approach is
+            // ground the aircraft would reach before the aim point.
+            if (finalScan.maxHeight() > arrivalElevation + APPROACH_OBSTRUCTION) {
+                warnings.add(Component.translatable("warning.faautoroute.approach_terrain",
+                        finalScan.maxHeight() - arrivalElevation));
+            }
 
             if (holdingDescent) {
                 addHoldingApproach(points, level, leg, options.destX(), options.destZ(),

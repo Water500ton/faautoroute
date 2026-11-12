@@ -16,7 +16,7 @@ FlightAssistant AutoRoute is a client-side Fabric mod for Minecraft 1.21–1.21.
 - **Terrain-aware cruise altitude** — samples the client-side heightmap around the route and raises the cruise altitude above the highest terrain in the corridor.
 - **Auto-land** — builds a final approach and FlightAssistant arrival data, with checks for water, lava, leaves, obstacles, and steep ground.
 - **Holding descent** — inserts a descending holding pattern when the remaining distance is too short to lose altitude.
-- **Low-altitude landing protection** — limits the final descent and applies a landing brake/flare to reduce touchdown speed. Normal cruise descent is not artificially slowed.
+- **Landing assist with terrain avoidance and go-around** — flies a glide path to the landing point, keeps clearance over terrain sampled ahead, caps the descent rate to control touchdown speed, climbs away and re-plans if the approach becomes unrecoverable, and releases the autopilot after touchdown. Normal cruise descent is not artificially slowed.
 - **GUI planner** — press `F8` to enter coordinates, preview the route, manage via points, and toggle auto-land/autopilot.
 - **Current position and via points** — add the player's current X/Z, or chain multiple waypoints before the destination.
 - **Xaero integration** — pick Xaero waypoints as destinations/via points and publish the planned route as temporary Xaero waypoints.

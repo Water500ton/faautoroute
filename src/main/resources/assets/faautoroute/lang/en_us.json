@@ -108,5 +108,7 @@
   "mode.faautoroute.landing_brake": "Landing brake",
   "mode.faautoroute.rollout": "Rollout",
   "warning.faautoroute.approach_terrain": "The final approach crosses ground %s blocks above the aim point; the aircraft may touch down before the target. Pick a clearer approach.",
-  "mode.faautoroute.terrain": "Terrain"
+  "mode.faautoroute.terrain": "Terrain",
+  "mode.faautoroute.go_around": "Go around",
+  "command.faautoroute.go_around": "Go around %s/%s: approach unrecoverable, climbing away and re-planning"
 }

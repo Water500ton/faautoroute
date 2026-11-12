@@ -87,12 +87,79 @@ public final class LandingSim {
     private LandingSim() {
     }
 
+    // ---------------------------------------------------------------- success
+
+    /** Distance inside which a touchdown still counts as "at the aim point". */
+    private static final double SUCCESS_DISTANCE = 50.0;
+    /** Touchdown horizontal speed a landing must not exceed to be survivable. */
+    private static final double SUCCESS_SPEED = 12.0;
+    /**
+     * Touchdown sink rate a landing must not exceed. An elytra touchdown does
+     * not take fall damage (the glide ends at ground level), so this guards
+     * bounce and control loss rather than health.
+     */
+    private static final double SUCCESS_SINK = 3.0;
+
+    /** Go-arounds used by the most recent run (diagnostics only). */
+    private static int goAroundsUsed;
+
+    static boolean isSuccessful(Result result) {
+        return Math.abs(result.touchdownDistanceError()) <= SUCCESS_DISTANCE
+                && result.touchdownSpeed() <= SUCCESS_SPEED
+                && result.touchdownSink() <= SUCCESS_SINK;
+    }
+
+    /** One landing attempt: everything the fleet matrix is aggregated over. */
+    record Scenario(Plant plant, Entry entry, Terrain terrain) {
+        static final List<Scenario> ALL = new ArrayList<>();
+        static {
+            for (Plant plant : Plant.ALL) {
+                for (Entry entry : Entry.ALL) {
+                    for (Terrain terrain : Terrain.ALL) {
+                        ALL.add(new Scenario(plant, entry, terrain));
+                    }
+                }
+            }
+        }
+    }
+
     public static void main(String[] args) {
         String mode = args.length > 0 ? args[0].toLowerCase(Locale.ROOT) : "";
         switch (mode) {
             case "sweep" -> runSweep();
+            case "success" -> runSuccessReport();
             case "check" -> runChecks();
             default -> System.out.println(report(LandingLaw.Config.DEFAULT));
+        }
+    }
+
+    /** Fleet-wide success rate with a per-scenario failure list. */
+    private static void runSuccessReport() {
+        LandingLaw.Config config = LandingLaw.Config.DEFAULT;
+        List<Scenario> failed = new ArrayList<>();
+        goAroundsUsed = 0;
+        for (Scenario scenario : Scenario.ALL) {
+            if (!isSuccessful(simulate(scenario.plant(), scenario.entry(), true, config, scenario.terrain()))) {
+                failed.add(scenario);
+            }
+        }
+        System.out.printf(Locale.ROOT,
+                "success criteria: |d-error| <= %.0f m, td speed <= %.0f m/s, td sink <= %.1f m/s%n",
+                SUCCESS_DISTANCE, SUCCESS_SPEED, SUCCESS_SINK);
+        System.out.printf(Locale.ROOT, "success rate: %d/%d = %.1f%% (go-arounds used: %d)%n%n",
+                Scenario.ALL.size() - failed.size(), Scenario.ALL.size(),
+                100.0 * (Scenario.ALL.size() - failed.size()) / Scenario.ALL.size(),
+                goAroundsUsed);
+        if (!failed.isEmpty()) {
+            System.out.println("failures (plant / entry / terrain):");
+            for (Scenario scenario : failed) {
+                Result result = simulate(scenario.plant(), scenario.entry(), true, config, scenario.terrain());
+                System.out.printf(Locale.ROOT, "  %-11s %-13s %-10s err %+.1f m, td %s%.1f m/s, sink %.2f m/s%n",
+                        scenario.plant().name(), scenario.entry().name(), scenario.terrain().name(),
+                        result.touchdownDistanceError(),
+                        result.touchdownSpeed() > SUCCESS_SPEED ? "SLOW " : "     ",
+                        result.touchdownSpeed(), result.touchdownSink());
+            }
         }
     }
 
@@ -299,27 +366,32 @@ public final class LandingSim {
                 for (double minSink : new double[]{0.3, 0.5}) {
                     for (double maxSink : new double[]{3.0, 4.0}) {
                         for (double taper : new double[]{0.5, 0.6, 1.0}) {
+                            for (double speedTarget : new double[]{9.0, 10.0, 11.0}) {
                             LandingLaw.Config base = LandingLaw.Config.DEFAULT;
                             LandingLaw.Config config = new LandingLaw.Config(
                                     base.engageAgl(), base.engageDistance(), minSink, maxSink,
-                                    touchdown, settle, base.speedLimit(), base.speedBrakeGain(),
-                                    base.speedBrakeMinTime(), taper, base.terrainMargin(),
-                                    base.terrainClimb(), base.releaseDelayTicks());
+                                    touchdown, settle, speedTarget, base.maxGlideRatio(),
+                                    base.goAroundExcess(), base.goAroundAltitude(),
+                                    base.goAroundMinDistance(), base.goAroundClimb(),
+                                    taper, base.terrainMargin(), base.terrainClimb(),
+                                    base.releaseDelayTicks());
                             candidates.add(score(config));
+                            }
                         }
                     }
                 }
             }
         }
         candidates.sort(Comparator.comparingDouble(Candidate::score));
-        System.out.println("| settle | td | minSink | maxSink | taper | mean |err| | worst |err| | mean td m/s | mean sink | score |");
-        System.out.println("| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        System.out.println("| settle | td | minSink | maxSink | taper | speedTarget | mean |err| | worst |err| | mean td m/s | mean sink | score |");
+        System.out.println("| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
         for (int i = 0; i < Math.min(12, candidates.size()); i++) {
             Candidate candidate = candidates.get(i);
-            System.out.printf(Locale.ROOT, "| %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.2f | %.2f |%n",
+            System.out.printf(Locale.ROOT, "| %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.2f | %.2f |%n",
                     candidate.config().settleAgl(), candidate.config().touchdownVs(),
                     candidate.config().minSink(), candidate.config().maxSink(),
-                    candidate.config().taperTime(), candidate.meanError(), candidate.worstError(),
+                    candidate.config().taperTime(), candidate.config().speedTarget(),
+                    candidate.meanError(), candidate.worstError(),
                     candidate.meanSpeed(), candidate.meanSink(), candidate.score());
         }
     }
@@ -371,6 +443,8 @@ public final class LandingSim {
         double maxHeight = height;
         double time = 0.0;
         double agl = height - terrain.ground(0.0);
+        int goAroundsLeft = 2;
+        boolean climbingOut = false;
 
         while (agl > 0.0 && time < 600.0) {
             double aimElevation = terrain.ground(1.0);
@@ -383,9 +457,49 @@ public final class LandingSim {
                 double constraint = LandingLaw.terrainConstraint(groundAhead, aimElevation, config);
                 terrainLimit = Math.min(terrainLimit, (height - constraint) * hs / ahead);
             }
-            double commanded = useNewLaw
-                    ? newLawCommand(law, agl, heightAboveAim, distance, hs, vs, terrainLimit)
-                    : oldLawCommand(agl, distance, hs, vs);
+            double commanded;
+            if (climbingOut) {
+                commanded = config.goAroundClimb();
+                if (heightAboveAim >= config.goAroundAltitude() && hs <= 11.0 && goAroundsLeft > 0) {
+                    // The mod re-plans from the current position. A re-planned
+                    // approach gives itself enough room for its own glide ratio;
+                    // model that as a fresh approach over the same terrain with
+                    // the distance the airframe needs.
+                    goAroundsLeft--;
+                    climbingOut = false;
+                    // The re-planned approach uses the planner's ~1:8 final
+                    // approach geometry plus its approach-fix margin, so the
+                    // retry flies a slope the airframe can actually hold.
+                    startDistance = Math.max(440.0, (heightAboveAim + 10.0) * 8.0 + 120.0);
+                    distance = startDistance;
+                    height = aimElevation + 55.0;
+                    hs = 8.0;
+                    vs = -1.0;
+                    travelled = 0.0;
+                    maxHeight = height;
+                    law.reset();
+                    agl = height - terrain.ground(0.0);
+                    continue;
+                }
+                if (heightAboveAim >= config.goAroundAltitude() && goAroundsLeft <= 0) {
+                    break; // cannot recover; scored as a miss
+                }
+            } else {
+                LandingLaw.Decision decision = law.evaluate(
+                        new LandingLaw.State(agl, heightAboveAim, vs, hs, distance, terrainLimit, false));
+                // NONE means "follow the plan", which is the shared nominal
+                // guidance, not "fly level".
+                commanded = decision.action() == LandingLaw.Action.NONE
+                        ? nominalSink(agl, distance, hs)
+                        : decision.targetVerticalSpeed();
+                if (decision.action() == LandingLaw.Action.GO_AROUND) {
+                    climbingOut = true;
+                    goAroundsUsed++;
+                }
+                if (!useNewLaw) {
+                    commanded = oldLawCommand(agl, distance, hs, vs);
+                }
+            }
 
             vs += (commanded - vs) * Math.min(1.0, DT / plant.tauVs());
 
@@ -432,13 +546,4 @@ public final class LandingSim {
         return -Math.min(4.0, Math.max(0.5, agl / Math.max(0.3, timeToAim)));
     }
 
-    private static double newLawCommand(LandingLaw law, double agl, double heightAboveAim,
-                                        double distance, double hs, double vs, double terrainLimit) {
-        LandingLaw.Decision decision = law.evaluate(
-                new LandingLaw.State(agl, heightAboveAim, vs, hs, distance, terrainLimit, false));
-        return switch (decision.action()) {
-            case BRAKE, FLARE, ROLLOUT -> decision.targetVerticalSpeed();
-            default -> nominalSink(agl, distance, hs);
-        };
-    }
 }

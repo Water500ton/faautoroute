@@ -17,10 +17,6 @@ package com.water500t.faautoroute;
  * {@code maxSink} so the law never dives nor stalls the glide, and replaced by a
  * fixed small {@code touchdownVs} in the last couple of metres.</p>
  *
- * <p>A short brake stage runs before that when the aircraft is still fast with
- * time to spare, trading speed for a small height gain instead of a hard
- * deceleration at low altitude.</p>
- *
  * <p>Terrain between the aircraft and the aim point is handled by a look-ahead
  * constraint: the caller samples the ground along the track (the caller has the
  * world; the law does not) and passes the steepest still-safe sink rate as
@@ -37,12 +33,12 @@ public final class LandingLaw {
     public enum Action {
         /** Keep following the flight plan. */
         NONE,
-        /** Bleed horizontal speed before the final descent. */
-        BRAKE,
         /** Follow the glide path to the aim point. */
         FLARE,
         /** Clear terrain standing above the aim elevation before the aim point. */
         TERRAIN,
+        /** Approach is unrecoverable: climb away and re-plan. */
+        GO_AROUND,
         /** On the ground: hold altitude target and release the autopilot. */
         ROLLOUT
     }
@@ -55,9 +51,12 @@ public final class LandingLaw {
             double maxSink,
             double touchdownVs,
             double settleAgl,
-            double speedLimit,
-            double speedBrakeGain,
-            double speedBrakeMinTime,
+            double speedTarget,
+            double maxGlideRatio,
+            double goAroundExcess,
+            double goAroundAltitude,
+            double goAroundMinDistance,
+            double goAroundClimb,
             double taperTime,
             double terrainMargin,
             double terrainClimb,
@@ -66,13 +65,16 @@ public final class LandingLaw {
         public static final Config DEFAULT = new Config(
                 70.0,   // engageAgl: take over the vertical mode below this AGL
                 420.0,  // engageDistance: ... and inside this distance
-                0.3,    // minSink: shallowest glide-path sink the law will command
+                0.15,   // minSink: shallowest glide-path sink the law will command
                 4.0,    // maxSink: steepest glide-path sink the law will command
                 0.5,    // touchdownVs: sink rate used in the last metres
                 0.3,    // settleAgl: below this AGL the sink is pinned to touchdownVs
-                13.0,   // speedLimit: above this speed the path is flown shallower
-                0.12,   // speedBrakeGain: m/s of sink removed per m/s of excess speed
-                8.0,    // speedBrakeMinTime: only slow down with this much time left
+                11.0,   // speedTarget: descent is capped at speedTarget / glideRatio
+                9.0,    // maxGlideRatio: shallowest glide the airframe sustains
+                6.0,    // goAroundExcess: altitude left at the aim that means "go around"
+                60.0,   // goAroundAltitude: climb out to this height above the aim
+                60.0,   // goAroundMinDistance: never go around closer than this
+                1.2,    // goAroundClimb: vertical speed used to climb away (m/s)
                 0.5,    // taperTime: only smooths the last ~2m, see glidePathSink
                 4.0,    // terrainMargin: clearance kept over terrain sampled ahead
                 1.0,    // terrainClimb: vertical speed used to climb over terrain
@@ -104,15 +106,25 @@ public final class LandingLaw {
     public record Decision(Action action, double targetVerticalSpeed, boolean releaseAutopilot) {
     }
 
+    /** Smoothing factor for the online glide-ratio estimate. */
+    private static final double GLIDE_RATIO_ALPHA = 0.05;
+    /** Distance to the aim inside which the soft-touchdown floor applies. */
+    private static final double FINAL_FLOOR_DISTANCE = 60.0;
+
     private final Config config;
+    private final double initGlideRatio;
+    private double glideRatioEstimate;
     private int groundTicks;
 
     public LandingLaw(Config config) {
         this.config = config;
+        this.initGlideRatio = config.maxGlideRatio();
+        this.glideRatioEstimate = initGlideRatio;
     }
 
     public void reset() {
         groundTicks = 0;
+        glideRatioEstimate = initGlideRatio;
     }
 
     public Decision evaluate(State state) {
@@ -134,15 +146,35 @@ public final class LandingLaw {
             return new Decision(Action.NONE, 0.0, false);
         }
 
-        double sink = glidePathSink(agl, Math.max(0.0, state.heightAboveAim()), timeToAim);
-        boolean slowing = horizontalSpeed > config.speedLimit() && timeToAim > config.speedBrakeMinTime();
-        if (slowing) {
-            sink = Math.max(0.0, sink - config.speedBrakeGain() * (horizontalSpeed - config.speedLimit()));
+        // Sustained gliding re-accelerates the airframe along its glide ratio:
+        // descending at vs ends in a touchdown near vs * glideRatio. The ratio
+        // is estimated online from the current speed and sink, so the cap works
+        // for different airframes instead of assuming a fixed one.
+        if (state.verticalSpeed() < -0.5) {
+            double ratio = horizontalSpeed / -state.verticalSpeed();
+            ratio = Math.max(3.0, Math.min(16.0, ratio));
+            glideRatioEstimate += GLIDE_RATIO_ALPHA * (ratio - glideRatioEstimate);
         }
+        double speedCap = config.speedTarget() / Math.max(3.0, glideRatioEstimate);
+
+        // A hot or high approach cannot be fixed by diving: diving is exactly
+        // what rebuilds speed. If the altitude left at the aim while descending
+        // at the speed cap is still large, climb away and re-plan instead.
+        double heightAboveAim = Math.max(0.0, state.heightAboveAim());
+        double excessAtAim = heightAboveAim - speedCap * timeToAim;
+        if (excessAtAim > config.goAroundExcess() && distance > config.goAroundMinDistance()) {
+            return new Decision(Action.GO_AROUND, config.goAroundClimb(), false);
+        }
+
+        double sink = glidePathSink(agl, heightAboveAim, timeToAim);
         // Keep the last couple of seconds of descent gentle: never ask for a sink
         // rate that would cross the remaining height faster than taperTime allows.
         sink = Math.min(sink, Math.max(config.touchdownVs(), agl / config.taperTime()));
-        double commanded = Math.max(sink, config.touchdownVs());
+        // The soft-touchdown floor only applies near the aim point. On a long
+        // shallow approach it would otherwise force a faster descent than the
+        // glide path asks for and put the aircraft down early.
+        double floor = distance < FINAL_FLOOR_DISTANCE ? config.touchdownVs() : 0.0;
+        double commanded = Math.min(Math.max(sink, floor), speedCap);
 
         // Terrain look-ahead: ground standing above the aim elevation between
         // here and the aim point is ground the glide path would fly into. The
@@ -157,8 +189,7 @@ public final class LandingLaw {
             // above terrain matters more than a gentle touchdown.
             return new Decision(Action.TERRAIN, -Math.max(0.0, terrainLimit), false);
         }
-        double target = -commanded;
-        return new Decision(slowing ? Action.BRAKE : Action.FLARE, target, false);
+        return new Decision(Action.FLARE, -commanded, false);
     }
 
     /**

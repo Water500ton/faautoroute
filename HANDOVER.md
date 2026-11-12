@@ -32,7 +32,7 @@
 
 | 文件 | SHA-256 |
 | --- | --- |
-| `dist/faautoroute-1.1.8+mc1.21.1.jar` | `c73061fe7e0f9a1dc14499edb989aa542c7ccdbab5ee5590cd23110d3b2ffb80` |
+| `dist/faautoroute-1.1.8+mc1.21.1.jar` | `d70ea9d090e97128800c2447af18afde815dc9bd83866c28e5530e1eea7ca568` |
 | `dist/faautoroute-1.1.7+mc1.21.1.jar`（旧，勿再发布） | `7bab99c2a3577337b196b3db7bc911cb6917603028df3a2e6410f2673148b0bd` |
 
 说明：
@@ -171,6 +171,17 @@ src/main/resources/assets/faautoroute/icon.png
 另外，`RoutePlanner` 在自动降落时会检查最后进近走廊：若出现高出落点 8 格以上的地形，给出
 `warning.faautoroute.approach_terrain` 警告（因为落地律是往落点标高降的，会先撞上这段地形）。
 
+**速度上限与复飞（1.1.8 后半）**：
+
+- 鞘翅的物理现实：**下降越陡，接地速度越大**。稳定下滑时 `地速 ≈ 下降率 × 滑翔比`。
+- 所以接地速度的根本控制手段是把下降率压在 `speedTarget / 滑翔比` 以内（默认 11/9 ≈ 1.2 m/s）。
+  滑翔比是在线估计的（EMA，`hs/|vs|`），不同机体自适应。
+- 代价：下降率被压后，偏高/偏快的进近会“差高度”。判据：按速度上限飞到落点仍高出
+  `goAroundExcess`(6 格) 以上 → `GO_AROUND`，爬升脱离并自动重新规划（复用 pendingLanding）。
+- 防循环：每次用户规划最多 `MAX_GO_AROUNDS`(3) 次复飞，30 秒冷却；计数在用户手动规划/清除时重置。
+- 调参入口都在 `LandingLaw.Config.DEFAULT`：`speedTarget`、`maxGlideRatio`、`goAroundExcess`、
+  `goAroundAltitude`、`goAroundMinDistance`、`goAroundClimb`。
+
 ## 6. 构建
 
 要求 JDK 21。当前开发机（注意沙箱把 `RLIMIT_AS` 卡在 4 GB，必须压小堆）：
@@ -193,9 +204,23 @@ GRADLE_USER_HOME=$PWD/.gradle \
 
 ```bash
 ./sim/run.sh          # 对比报告：1.1.7 旧启发式 vs 新落地律
-./sim/run.sh check    # 落地律行为断言（9 项，全部应 ok）
+./sim/run.sh check    # 落地律行为断言（12 项，全部应 ok）
+./sim/run.sh success  # 成功率：192 例（4 机体 × 8 进入 × 6 地形）+ 失败清单
 ./sim/run.sh sweep    # 参数扫描，按“落点误差 + 接地速度 + 接地下降率”排序
 ```
+
+**成功率判据**（`LandingSim` 顶部常量，可改）：
+
+- 落点误差 ≤ 50 m（沿航迹，短了或冲过都算偏差）
+- 接地地速 ≤ 12 m/s（防撞掩体/树木时的横撞伤害）
+- 接地下降率 ≤ 3.0 m/s（鞘翅接地不掉血，这条防弹跳和失控）
+
+当前结果：**192/192 = 100%**（旧逻辑 48.4%），其中 **105 例经复飞恢复**。
+两条硬性提醒：
+
+1. 复飞重试在仿真里建模为“重规划必然给出 1:8 几何的可行五边”——这只验证了律的决策，
+   **FA 在复飞爬升中的实际行为、重规划链路、烟花消耗都没实机验证过**。
+2. 复飞很烧烟花；`speedTarget`/`goAroundExcess` 调松可以少复飞，但会牺牲判据。
 
 `sim/` 只依赖 JDK，不碰 Minecraft。当前基线结果（4 种机体参数 × 8 种进入状态）：
 

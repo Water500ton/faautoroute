@@ -31,6 +31,10 @@ public final class AutoRouteClient implements ClientModInitializer {
     private static final LandingLaw LANDING_LAW = new LandingLaw(LandingLaw.Config.DEFAULT);
     private static final double TERRAIN_SAMPLE_STEP = 8.0;
     private static final double TERRAIN_SAMPLE_RANGE = 320.0;
+    private static final int GO_AROUND_COOLDOWN_TICKS = 600;
+    private static final int MAX_GO_AROUNDS = 3;
+    private static int goAroundCooldown;
+    private static int goAroundCount;
     private static final java.util.Map<Long, AutoFlightComputer.VerticalMode> VERTICAL_MODE_CACHE =
             new java.util.HashMap<>();
 
@@ -50,6 +54,9 @@ public final class AutoRouteClient implements ClientModInitializer {
             while (openPlannerKey.consumeClick()) {
                 client.setScreen(new RoutePlannerScreen(client.screen));
             }
+            if (goAroundCooldown > 0) {
+                goAroundCooldown--;
+            }
             syncPlanModes();
             tickPendingLanding(client);
             FlightTelemetry.tick(client);
@@ -67,6 +74,7 @@ public final class AutoRouteClient implements ClientModInitializer {
     public static void setLastResult(RouteResult result) {
         lastResult = result;
         LANDING_LAW.reset();
+        goAroundCount = 0;
         if (result == null) {
             pendingLanding = null;
         }
@@ -106,7 +114,12 @@ public final class AutoRouteClient implements ClientModInitializer {
             }
 
             switch (decision.action()) {
-                case BRAKE, FLARE, ROLLOUT -> autoflight.setSelectedVerticalMode(
+                case GO_AROUND -> {
+                    autoflight.setSelectedVerticalMode(
+                            modeFor(LandingLaw.Action.GO_AROUND, decision.targetVerticalSpeed()));
+                    armGoAround(plan);
+                }
+                case FLARE, TERRAIN, ROLLOUT -> autoflight.setSelectedVerticalMode(
                         modeFor(decision.action(), decision.targetVerticalSpeed()));
                 default -> {
                     if (vertical != null) {
@@ -119,6 +132,32 @@ public final class AutoRouteClient implements ClientModInitializer {
             }
         } catch (Throwable ignored) {
             // A missing/transitioning plan must never crash the client tick.
+        }
+    }
+
+    /**
+     * Queue a fresh auto-land for the same destination and climb away once.
+     * Limited to {@value #MAX_GO_AROUNDS} attempts per user-loaded plan so a
+     * stubborn approach cannot burn the rocket inventory in a loop; the counter
+     * resets whenever the user plans or clears a route themselves.
+     */
+    private static void armGoAround(FlightPlanComputer plan) {
+        if (goAroundCooldown > 0 || pendingLanding != null || goAroundCount >= MAX_GO_AROUNDS) {
+            return;
+        }
+        FlightPlanComputer.ArrivalData arrival = plan.getArrivalData();
+        if (arrival.isDefault()) {
+            return;
+        }
+        // cruise 0 reads as "automatic" to the planner (it clamps to a safe value).
+        pendingLanding = new PendingLanding(
+                arrival.getCoordinatesX(), arrival.getCoordinatesZ(), 0, 8);
+        goAroundCooldown = GO_AROUND_COOLDOWN_TICKS;
+        goAroundCount++;
+        Minecraft client = Minecraft.getInstance();
+        if (client.player != null) {
+            client.player.displayClientMessage(Component.translatable(
+                    "command.faautoroute.go_around", goAroundCount, MAX_GO_AROUNDS), true);
         }
     }
 
@@ -189,7 +228,7 @@ public final class AutoRouteClient implements ClientModInitializer {
 
     private static String labelFor(LandingLaw.Action action) {
         return switch (action) {
-            case BRAKE -> "mode.faautoroute.landing_brake";
+            case GO_AROUND -> "mode.faautoroute.go_around";
             case FLARE -> "mode.faautoroute.flare";
             case TERRAIN -> "mode.faautoroute.terrain";
             default -> "mode.faautoroute.rollout";

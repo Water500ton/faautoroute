@@ -70,8 +70,6 @@ Put this mod jar and the dependencies above into `mods/`. Xaero is optional; wit
 
 The right side of the GUI shows the route preview, distance, cruise altitude, waypoint count, via count, ETA, and terrain warnings.
 
-![AutoRoute GUI](docs/gui.png)
-
 ### Commands
 
 | Command | Description |
@@ -96,8 +94,6 @@ The right side of the GUI shows the route preview, distance, cruise altitude, wa
 - Use **Xaero** in the GUI to pick a destination or a via point.
 - The planned route is shown as temporary waypoints named `AR START`, `AR 1`, `AR 2`, … and `AR DEST`.
 - Clearing the route removes those temporary waypoints.
-
-![Xaero temporary route](docs/xaero-waypoints.png)
 
 ## How planning works
 

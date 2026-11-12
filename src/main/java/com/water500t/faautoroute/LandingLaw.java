@@ -69,7 +69,7 @@ public final class LandingLaw {
                 4.0,    // maxSink: steepest glide-path sink the law will command
                 0.5,    // touchdownVs: sink rate used in the last metres
                 0.3,    // settleAgl: below this AGL the sink is pinned to touchdownVs
-                11.0,   // speedTarget: descent is capped at speedTarget / glideRatio
+                11.5,   // speedTarget: descent is capped at speedTarget / glideRatio
                 9.0,    // maxGlideRatio: shallowest glide the airframe sustains
                 6.0,    // goAroundExcess: altitude left at the aim that means "go around"
                 60.0,   // goAroundAltitude: climb out to this height above the aim

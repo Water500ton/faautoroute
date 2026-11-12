@@ -59,7 +59,8 @@ public final class LandingSim {
     }
 
     record Result(double touchdownDistanceError, double touchdownSpeed,
-                  double touchdownSink, boolean flewPast, double maxClimb, double duration) {
+                  double touchdownSink, boolean flewPast, double maxClimb, double duration,
+                  int goArounds) {
     }
 
     /**
@@ -100,8 +101,6 @@ public final class LandingSim {
      */
     private static final double SUCCESS_SINK = 3.0;
 
-    /** Go-arounds used by the most recent run (diagnostics only). */
-    private static int goAroundsUsed;
 
     static boolean isSuccessful(Result result) {
         return Math.abs(result.touchdownDistanceError()) <= SUCCESS_DISTANCE
@@ -127,6 +126,7 @@ public final class LandingSim {
         String mode = args.length > 0 ? args[0].toLowerCase(Locale.ROOT) : "";
         switch (mode) {
             case "sweep" -> runSweep();
+            case "curve" -> runCurve();
             case "success" -> runSuccessReport();
             case "check" -> runChecks();
             default -> System.out.println(report(LandingLaw.Config.DEFAULT));
@@ -136,11 +136,14 @@ public final class LandingSim {
     /** Fleet-wide success rate with a per-scenario failure list. */
     private static void runSuccessReport() {
         LandingLaw.Config config = LandingLaw.Config.DEFAULT;
+        List<Result> results = Scenario.ALL.parallelStream()
+                .map(scenario -> simulate(scenario.plant(), scenario.entry(), true, config, scenario.terrain()))
+                .toList();
+        int goArounds = results.stream().mapToInt(Result::goArounds).sum();
         List<Scenario> failed = new ArrayList<>();
-        goAroundsUsed = 0;
-        for (Scenario scenario : Scenario.ALL) {
-            if (!isSuccessful(simulate(scenario.plant(), scenario.entry(), true, config, scenario.terrain()))) {
-                failed.add(scenario);
+        for (int i = 0; i < results.size(); i++) {
+            if (!isSuccessful(results.get(i))) {
+                failed.add(Scenario.ALL.get(i));
             }
         }
         System.out.printf(Locale.ROOT,
@@ -149,7 +152,7 @@ public final class LandingSim {
         System.out.printf(Locale.ROOT, "success rate: %d/%d = %.1f%% (go-arounds used: %d)%n%n",
                 Scenario.ALL.size() - failed.size(), Scenario.ALL.size(),
                 100.0 * (Scenario.ALL.size() - failed.size()) / Scenario.ALL.size(),
-                goAroundsUsed);
+                goArounds);
         if (!failed.isEmpty()) {
             System.out.println("failures (plant / entry / terrain):");
             for (Scenario scenario : failed) {
@@ -357,6 +360,50 @@ public final class LandingSim {
                 law, meanAbs, maxAbs, overfly, errors.size(), meanSpeed, worstSpeed);
     }
 
+    // ------------------------------------------------------------------- curve
+
+    /**
+     * Success rate vs go-around count as the two knobs that trade them against
+     * each other are swept. Every other constant stays at its default.
+     */
+    private static void runCurve() {
+        System.out.println("| speedTarget | goAroundExcess | success% | go-arounds | mean abs err m | worst m | mean td m/s |");
+        System.out.println("| ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        LandingLaw.Config base = LandingLaw.Config.DEFAULT;
+        for (double speedTarget : new double[]{10.5, 11.0, 11.5, 12.0, 12.5, 13.0}) {
+            for (double goAroundExcess : new double[]{3.0, 4.0, 6.0, 8.0, 10.0}) {
+                LandingLaw.Config config = new LandingLaw.Config(
+                        base.engageAgl(), base.engageDistance(), base.minSink(), base.maxSink(),
+                        base.touchdownVs(), base.settleAgl(), speedTarget, base.maxGlideRatio(),
+                        goAroundExcess, base.goAroundAltitude(), base.goAroundMinDistance(),
+                        base.goAroundClimb(), base.taperTime(), base.terrainMargin(),
+                        base.terrainClimb(), base.releaseDelayTicks());
+                List<Result> results = Scenario.ALL.parallelStream()
+                        .map(scenario -> simulate(scenario.plant(), scenario.entry(), true, config, scenario.terrain()))
+                        .toList();
+                int passed = 0;
+                double sumAbs = 0.0;
+                double worst = 0.0;
+                double sumSpeed = 0.0;
+                int goArounds = 0;
+                for (Result result : results) {
+                    if (isSuccessful(result)) {
+                        passed++;
+                    }
+                    double error = Math.abs(result.touchdownDistanceError());
+                    sumAbs += error;
+                    worst = Math.max(worst, error);
+                    sumSpeed += result.touchdownSpeed();
+                    goArounds += result.goArounds();
+                }
+                System.out.printf(Locale.ROOT, "| %.1f | %.1f | %.1f | %d | %.1f | %.1f | %.1f |%n",
+                        speedTarget, goAroundExcess, 100.0 * passed / Scenario.ALL.size(),
+                        goArounds, sumAbs / Scenario.ALL.size(), worst,
+                        sumSpeed / Scenario.ALL.size());
+            }
+        }
+    }
+
     // ------------------------------------------------------------------- sweep
 
     private static void runSweep() {
@@ -366,16 +413,18 @@ public final class LandingSim {
                 for (double minSink : new double[]{0.3, 0.5}) {
                     for (double maxSink : new double[]{3.0, 4.0}) {
                         for (double taper : new double[]{0.5, 0.6, 1.0}) {
-                            for (double speedTarget : new double[]{9.0, 10.0, 11.0}) {
+                            for (double speedTarget : new double[]{10.5, 11.0, 11.5, 12.0, 12.5, 13.0}) {
+                                for (double goAroundExcess : new double[]{4.0, 6.0, 8.0, 10.0}) {
                             LandingLaw.Config base = LandingLaw.Config.DEFAULT;
                             LandingLaw.Config config = new LandingLaw.Config(
                                     base.engageAgl(), base.engageDistance(), minSink, maxSink,
                                     touchdown, settle, speedTarget, base.maxGlideRatio(),
-                                    base.goAroundExcess(), base.goAroundAltitude(),
+                                    goAroundExcess, base.goAroundAltitude(),
                                     base.goAroundMinDistance(), base.goAroundClimb(),
                                     taper, base.terrainMargin(), base.terrainClimb(),
                                     base.releaseDelayTicks());
                             candidates.add(score(config));
+                            }
                             }
                         }
                     }
@@ -383,21 +432,23 @@ public final class LandingSim {
             }
         }
         candidates.sort(Comparator.comparingDouble(Candidate::score));
-        System.out.println("| settle | td | minSink | maxSink | taper | speedTarget | mean |err| | worst |err| | mean td m/s | mean sink | score |");
-        System.out.println("| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
+        System.out.println("| settle | td | minSink | maxSink | taper | speedTarget | success% | GAs | mean |err| | worst |err| | mean td m/s | mean sink | score |");
+        System.out.println("| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |");
         for (int i = 0; i < Math.min(12, candidates.size()); i++) {
             Candidate candidate = candidates.get(i);
-            System.out.printf(Locale.ROOT, "| %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.2f | %.2f |%n",
+                System.out.printf(Locale.ROOT, "| %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %.1f | %d | %.1f | %.1f | %.1f | %.2f | %.2f |%n",
                     candidate.config().settleAgl(), candidate.config().touchdownVs(),
                     candidate.config().minSink(), candidate.config().maxSink(),
                     candidate.config().taperTime(), candidate.config().speedTarget(),
+                    candidate.successRate(), candidate.goArounds(),
                     candidate.meanError(), candidate.worstError(),
                     candidate.meanSpeed(), candidate.meanSink(), candidate.score());
         }
     }
 
     private record Candidate(LandingLaw.Config config, double score, double meanError,
-                             double worstError, double meanSpeed, double meanSink) {
+                             double worstError, double meanSpeed, double meanSink,
+                             double successRate, int goArounds) {
     }
 
     private static Candidate score(LandingLaw.Config config) {
@@ -406,26 +457,37 @@ public final class LandingSim {
         double sumSpeed = 0.0;
         double sumSink = 0.0;
         int count = 0;
-        for (Plant plant : Plant.ALL) {
-            for (Entry entry : Entry.ALL) {
-                Result result = simulate(plant, entry, true, config, FLAT);
-                double error = Math.abs(result.touchdownDistanceError());
-                sumAbs += error;
-                worst = Math.max(worst, error);
-                sumSpeed += result.touchdownSpeed();
-                sumSink += result.touchdownSink();
-                count++;
+        int passed = 0;
+        List<Result> results = Scenario.ALL.parallelStream()
+                .map(scenario -> simulate(scenario.plant(), scenario.entry(), true, config, scenario.terrain()))
+                .toList();
+        for (Result result : results) {
+            double error = Math.abs(result.touchdownDistanceError());
+            sumAbs += error;
+            worst = Math.max(worst, error);
+            sumSpeed += result.touchdownSpeed();
+            sumSink += result.touchdownSink();
+            if (isSuccessful(result)) {
+                passed++;
             }
+            count++;
         }
+        int gaTotal = results.stream().mapToInt(Result::goArounds).sum();
         double meanError = sumAbs / count;
         double meanSpeed = sumSpeed / count;
         double meanSink = sumSink / count;
-        // Distance error dominates; fast or hard touchdowns are penalised but not ignored.
+        double successRate = 100.0 * passed / count;
+        // Distance error dominates; fast or hard touchdowns are penalised but not
+        // ignored. Go-arounds are counted so a lazy always-go-around tuning is
+        // visible in the ranking.
         double scoreValue = meanError
                 + 0.35 * worst
                 + 1.5 * Math.max(0.0, meanSpeed - 9.0)
-                + 3.0 * Math.max(0.0, meanSink - 1.5);
-        return new Candidate(config, scoreValue, meanError, worst, meanSpeed, meanSink);
+                + 3.0 * Math.max(0.0, meanSink - 1.5)
+                + 2.0 * Math.max(0.0, 90.0 - successRate)
+                + 0.15 * gaTotal;
+        return new Candidate(config, scoreValue, meanError, worst, meanSpeed, meanSink,
+                successRate, gaTotal);
     }
 
     // -------------------------------------------------------------- simulation
@@ -445,6 +507,7 @@ public final class LandingSim {
         double agl = height - terrain.ground(0.0);
         int goAroundsLeft = 2;
         boolean climbingOut = false;
+        int goArounds = 0;
 
         while (agl > 0.0 && time < 600.0) {
             double aimElevation = terrain.ground(1.0);
@@ -494,7 +557,7 @@ public final class LandingSim {
                         : decision.targetVerticalSpeed();
                 if (decision.action() == LandingLaw.Action.GO_AROUND) {
                     climbingOut = true;
-                    goAroundsUsed++;
+                    goArounds++;
                 }
                 if (!useNewLaw) {
                     commanded = oldLawCommand(agl, distance, hs, vs);
@@ -518,7 +581,8 @@ public final class LandingSim {
         }
 
         double error = travelled - startDistance;
-        return new Result(error, hs, Math.abs(vs), error > 20.0, maxHeight - entry.agl(), time);
+        return new Result(error, hs, Math.abs(vs), error > 20.0, maxHeight - entry.agl(), time,
+                goArounds);
     }
 
     /** Re-implementation of the 1.1.7 heuristics, for a like-for-like comparison. */

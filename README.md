@@ -1,165 +1,179 @@
+<p align="center">
+  <strong>English</strong> · <a href="README.zh-CN.md">简体中文</a>
+</p>
+
 # FlightAssistant AutoRoute
 
-一个面向 **Minecraft 1.21.1 / Fabric** 的客户端模组：为 [FlightAssistant](https://modrinth.com/mod/flightassistant) 自动规划地形感知航线，并把航点直接写入 FlightAssistant 的飞行计划（FMS）。
+A client-side **Minecraft 1.21.1 / Fabric** mod that plans terrain-aware routes for [FlightAssistant](https://modrinth.com/mod/flightassistant) and loads them directly into its flight plan (FMS).
 
-> 不是 FlightAssistant 官方项目，也不修改服务端。所有规划都在客户端完成。
+> Not an official FlightAssistant project. Everything runs on the client; no server-side changes are required.
 
-## 功能
+![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62b47a)
+![Fabric](https://img.shields.io/badge/Fabric-0.16.10%2B-dbd0b4)
+![License](https://img.shields.io/badge/License-MIT-blue)
 
-- **一键自动规划**：输入目标 X/Z，自动生成爬升、巡航、下降和进近航点。
-- **地形感知**：沿航线左右各 48 格采样客户端已加载区块的高度图，自动选择安全巡航高度。
-- **自动降落（可选）**：生成最后进近航段和 FlightAssistant 的到达数据；降落前检查目标是否在水、岩浆、树叶、障碍物或过陡地形上。
-- **GUI 规划器**：`F8` 打开，可直接输入坐标、预览 2D 航线、选择是否自动降落和是否接通自动驾驶。
-- **途经点**：可把当前坐标加入航线，按顺序经过多个途经点后再到目标。
-- **Xaero 联动**：读取 Xaero 航点作为目标或途经点；规划结果会作为临时航线显示在 Xaero 小地图/世界地图上。
-- **游戏内命令**：适合宏或快速操作，例如 `/autoroute 1000 -2000 180 15`。
-- **中英双语**：跟随游戏语言显示。
-- **不捆绑依赖**：发布 jar 不包含 FlightAssistant 或 Fabric API。
+## Features
 
-## 环境要求
+- **One-click route planning** — enter a destination X/Z and get climb, cruise, descent, and approach waypoints.
+- **Terrain aware** — samples loaded client chunks around the route and raises the cruise altitude above the highest terrain in the corridor.
+- **Auto-land** — builds a final approach and FlightAssistant arrival data, with checks for water, lava, leaves, obstacles, and steep ground.
+- **Holding descent** — if the straight-line distance is too short to lose altitude, adds a descending holding pattern over the destination before the final approach.
+- **Low-altitude landing protection** — near the ground, limits the final descent and applies a landing brake/flare to reduce touchdown speed. Normal cruise descent is **not** artificially slowed.
+- **GUI planner** — press `F8` for a 2D preview, coordinate fields, via points, auto-land and autopilot toggles.
+- **Current position as a waypoint** — add the player's current X/Z as a via point.
+- **Xaero integration** — pick Xaero waypoints as destinations/via points, and publish the planned route as temporary Xaero waypoints.
+- **Commands** — useful for macros and quick planning, e.g. `/autoroute land 1000 -2000 180 15`.
+- **Bilingual UI** — follows the Minecraft language (English / Simplified Chinese).
+- **No bundled dependencies** — the release jar does not include FlightAssistant or Fabric API.
 
-| 依赖 | 版本 |
+## Requirements
+
+| Dependency | Version |
 | --- | --- |
-| Minecraft | 1.21 / 1.21.1 |
-| Fabric Loader | >= 0.16.10 |
-| Fabric API | 1.21.1 对应版本 |
-| FlightAssistant | >= 3.0.0（推荐 3.0.1） |
-| Architectury API | FlightAssistant 所需版本（13.x） |
-| Fabric Language Kotlin | FlightAssistant 所需版本 |
-| Yet Another Config Lib | FlightAssistant 所需版本 |
-| Xaero's Minimap / World Map | 可选；用于航点选择与航线显示 |
+| Minecraft | 1.21 – 1.21.1 |
+| Fabric Loader | 0.16.10+ |
+| Fabric API | matching 1.21.1 build |
+| FlightAssistant | 3.0.x (3.0.1 recommended) |
+| Architectury API | version required by FlightAssistant (13.x) |
+| Fabric Language Kotlin | version required by FlightAssistant |
+| Yet Another Config Lib | version required by FlightAssistant |
+| Xaero's Minimap / World Map | optional, for waypoint picking and map display |
 
-把本模组 jar 和上述依赖一起放进 `mods/` 即可。Xaero 不安装时模组仍可正常使用，只是没有地图联动。
+Put this mod jar and the dependencies above into `mods/`. Xaero is optional; without it, only the map integration is unavailable.
 
-## 使用
+## Installation
+
+1. Install Fabric Loader for Minecraft 1.21.1.
+2. Install Fabric API and FlightAssistant with its required dependencies.
+3. Put `faautoroute-<version>+mc1.21.1.jar` into `.minecraft/mods/`.
+4. Launch the Fabric profile. The mod is client-side only.
+
+## Usage
 
 ### GUI
 
-1. 按 `F8`，或输入 `/autoroute` / `/autoroute gui`。
-2. 填写目标 `X`、`Z`。
-3. `Cruise Y` 留空表示自动选择巡航高度；也可以手动指定。
-4. `Speed` 是 FlightAssistant 的目标速度（格/秒，0 表示不管理速度）。
-5. 可选：
-   - `Auto land`：生成完整进近和降落计划。
-   - `Arm AP`：加载计划后同时接通 FlightAssistant 的自动驾驶和自动油门。
-6. 点 `Preview` 只预览，点 `Plan & Load` 写入 FlightAssistant。
-7. `Use player` 把目标设为当前位置；`Use look` 把目标设为视线所指方块（最远 384 格）。
-8. `Xaero` 打开 Xaero 航点选择器，点一个航点即可把它设为目的地。
-9. `Waypoints` 打开途经点管理：
-   - `Add current` 把当前坐标加入航线（作为起点航点）。
-   - `Add Xaero` 从 Xaero 航点中选择一个加入途经点。
-   - 点击列表中的途经点可移除；也可以移除最后一个或清空。
-10. 规划成功后，路线会自动作为临时航点显示在 Xaero 地图上；点 `Clear` 会同时清除 FlightAssistant 计划、途经点和 Xaero 临时航线。
+1. Press `F8`, or run `/autoroute` / `/autoroute gui`.
+2. Enter the destination **X** and **Z**.
+3. Leave **Cruise Y** empty for automatic terrain-aware altitude, or enter a fixed altitude.
+4. **Speed** is FlightAssistant's target speed in blocks/second; `0` means "do not manage speed".
+5. Optional toggles:
+   - **Auto land** — build the full approach and landing plan.
+   - **Arm AP** — engage FlightAssistant autopilot and auto-throttle after loading.
+6. **Preview** only previews; **Plan & Load** writes the plan into FlightAssistant.
+7. **Use player** sets the destination to the current position; **Use look** targets the block you are looking at (up to 384 blocks).
+8. **Xaero** opens the Xaero waypoint picker.
+9. **Waypoints** manages via points:
+   - **Add current** adds the current X/Z.
+   - **Add Xaero** adds an Xaero waypoint.
+   - Click a listed via point to remove it.
+10. A successful plan is published as temporary Xaero waypoints. **Clear** also removes the FlightAssistant plan, via points, and temporary Xaero route.
 
-GUI 右侧会显示航线预览、距离、巡航高度、航点数、途经点数、预计时间和地形警告。
-
-### 命令
-
-| 命令 | 作用 |
-| --- | --- |
-| `/autoroute` | 打开 GUI |
-| `/autoroute gui` | 打开 GUI |
-| `/autoroute here` | 打开 GUI，目标预填为视线所指方块 |
-| `/autoroute addhere` | 把当前坐标加入途经点 |
-| `/autoroute waypoints` | 打开途经点管理界面 |
-| `/autoroute clearvia` | 清空途经点 |
-| `/autoroute <x> <z>` | 自动规划过境航线并加载 |
-| `/autoroute <x> <z> <cruise>` | 指定巡航高度 |
-| `/autoroute <x> <z> <cruise> <speed>` | 指定巡航高度和目标速度 |
-| `/autoroute land <x> <z> [cruise] [speed]` | 生成带自动降落的航线 |
-| `/autoroute clear` | 清除 FlightAssistant 飞行计划并断开自动驾驶 |
-| `/autoroute info` | 查看当前航点数和到达点 |
-
-命令中的 `cruise` 范围是 `-120..1200`，`speed` 范围是 `0..30`。
-
-## 规划逻辑
-
-1. 从当前位置依次经过所有途经点，最后到达目标，形成折线航迹。
-2. 沿每一段航迹每 24 格采样一次，并在横向 `-48/-24/0/+24/+48` 格处读取 `MOTION_BLOCKING_NO_LEAVES` 高度图。
-3. 取航线走廊内最高地形，加上至少 50 格净空，得到安全巡航高度；下界会将上限限制在 Y=118。
-4. 生成第一个航点作为爬升/航迹建立点，之后每 512 格一个巡航航点；每个途经点都会生成一个转弯航点。
-5. 根据下降率计算下降顶点（TOD），插入下降段。
-6. 自动降落时，在目标前 120–450 格建立最后进近点，按约 1:10 下滑角下降到目标；同时写入 FlightAssistant 的 `ArrivalData`（标高、最低高度、复飞高度、复飞重入航点）。
-7. 第一个航点标记为 `TARGET`；如果显式添加了“当前坐标”作为途经点，它会被标记为 `ORIGIN`，下一个航点为 `TARGET`。
-
-> 本模组针对 FlightAssistant **3.0.x** 的飞行计划数据结构编译；FlightAssistant 大版本更新后可能需要重新适配。
-
-> 注意：规划只读取客户端已加载的区块。未加载区域会使用保守高度并显示警告；跨未加载区域的长航线仍然建议先低空探路或分段规划。
-
-## 自动降落的限制
-
-自动降落只保证“地形高度和坡度”层面的可行性，不能保证：
-
-- 目标上空没有建筑、树叶或其它碰撞体；
-- 目标不是村庄/要塞等不可破坏结构；
-- 服务器没有飞行限制或反作弊；
-- 你的 Elytra 和烟花足够完成进近。
-
-建议先在创造模式或安全场地测试。模组默认不接通自动驾驶，只有显式勾选 `Arm AP` 才会接管。
-
-下界无法使用自动降落：原版高度图在屋顶下方会返回顶部基岩高度，不能可靠判断地面，因此本模组在下界只提供过境航线。
-
-
-## 实机测试记录
-
-已在独立的 Minecraft 1.21.1 / Fabric 测试实例中实际启动客户端并进入世界验证：
-
-- `F8` 能打开规划器，紧凑窗口下按钮和标签完整显示。
-- `/autoroute 1000 1000` 成功生成并加载 `3` 个航点，巡航高度 `Y=213`，总距离 `1411` 格。
-- 未加载区块警告正常显示，巡航高度按保守值抬高。
-- `Waypoints → Add current` 成功添加当前坐标（如 `1. 4, 1`）。
-- Xaero 航点选择器可以打开；Xaero 航点列表中出现 `AR START`、`AR 1`、`AR 2`、`AR 3` 临时航点，证明地图联动生效。
-- `Land` / `AP` 开关可正常切换。
+The right side of the GUI shows the route preview, distance, cruise altitude, waypoint count, via count, ETA, and terrain warnings.
 
 ![AutoRoute GUI](docs/gui.png)
 
-![Xaero 临时航线](docs/xaero-waypoints.png)
+### Commands
 
-![命令反馈](docs/command.png)
+| Command | Description |
+| --- | --- |
+| `/autoroute` | Open the GUI |
+| `/autoroute gui` | Open the GUI |
+| `/autoroute here` | Open the GUI with the looked-at block as destination |
+| `/autoroute addhere` | Add the current position as a via point |
+| `/autoroute waypoints` | Open the via-point manager |
+| `/autoroute clearvia` | Clear all via points |
+| `/autoroute plan <x> <z> [cruise] [speed]` | Plan an overflight route and load it |
+| `/autoroute land <x> <z> [cruise] [speed]` | Plan with auto-land |
+| `/autoroute ap` | Engage autopilot and auto-throttle on the loaded plan |
+| `/autoroute clear` | Clear the FlightAssistant plan and disconnect autopilot |
+| `/autoroute info` | Show waypoint count and arrival information |
+| `/autoroute <x> <z> [cruise] [speed]` | Shortcut for `/autoroute plan` |
 
-![自然地形触地](docs/natural-landing.png)
+`cruise` accepts `-120..1200`; `speed` accepts `0..30`.
 
-![带拉平的自然地形触地](docs/natural-landing-flare.png)
+### Xaero
 
-> 已测试范围是客户端启动、GUI、航点生成、FlightAssistant 计划写入和 Xaero 地图显示；没有实际用 Elytra 飞完整条航线，也没有在生存模式下测试自动降落。
+- Use **Xaero** in the GUI to pick a destination or a via point.
+- The planned route is shown as temporary waypoints named `AR START`, `AR 1`, `AR 2`, … and `AR DEST`.
+- Clearing the route removes those temporary waypoints.
 
-## 从源码构建
+![Xaero temporary route](docs/xaero-waypoints.png)
 
-要求 JDK 21。项目使用 Gradle Wrapper：
+## How planning works
+
+1. The route is a polyline from the current position through all via points to the destination.
+2. Each leg is sampled every 24 blocks. At each sample, the `MOTION_BLOCKING_NO_LEAVES` heightmap is read at offsets `-48`, `-24`, `0`, `+24`, `+48` blocks.
+3. The highest terrain in the corridor plus a safety clearance determines the cruise altitude. The Nether roof is handled separately.
+4. A climb/track-establishment waypoint is added first, then cruise waypoints every 512 blocks; each via point gets a turn waypoint.
+5. The top of descent (TOD) is calculated from the descent rate and final approach geometry.
+6. With auto-land enabled, a final approach is placed 120–450 blocks before the destination and the aircraft follows a roughly 1:10 glide path.
+7. FlightAssistant `ArrivalData` is written with elevation, minimums, go-around altitude, and re-entry waypoint.
+8. If the remaining distance cannot support the descent, a descending holding pattern is inserted over the destination.
+9. Near touchdown, the mod limits the final descent and applies a landing brake/flare to reduce touchdown speed.
+
+> This mod is compiled against FlightAssistant **3.0.x** flight-plan internals. A major FlightAssistant update may require an adapter update.
+
+> Only loaded client chunks are sampled. Unloaded areas use conservative altitudes and produce a warning. For long routes across unloaded terrain, scout the area or split the route.
+
+## Auto-land limitations
+
+Auto-land only checks terrain height and slope. It cannot guarantee:
+
+- no buildings, trees, or other collision shapes above the target;
+- the target is not a village, fortress, or other protected structure;
+- the server allows flight and does not run anti-cheat restrictions;
+- your Elytra and fireworks are sufficient for the approach.
+
+Test in creative mode or a safe area first. Autopilot is **off by default**; it is only engaged when you explicitly use **Arm AP** or `/autoroute ap`.
+
+Auto-land is not available in the Nether: the vanilla heightmap returns the bedrock roof, so the mod only plans overflight routes there.
+
+## Tested
+
+Validated in a separate Minecraft 1.21.1 / Fabric client instance:
+
+- `F8` opens the planner; the GUI fits compact windows.
+- `/autoroute 1000 1000` produced and loaded a plan (3 waypoints, cruise `Y=213`, distance 1411 blocks).
+- Unloaded-chunk warnings and conservative cruise altitude work.
+- `Waypoints → Add current` adds the current X/Z as a via point.
+- Xaero temporary waypoints (`AR START`, `AR 1`, `AR 2`, `AR 3`) appear on the map.
+- Auto-land, holding descent, autopilot, and auto-throttle engage on a loaded plan.
+- A natural-terrain landing with the flare build touched down at `1273, 76, 1627` for target `1273, 1655` — about 28 blocks short, at zero ground speed and with full health. No artificial platform was used.
+
+![Natural-terrain landing with flare](docs/natural-landing-flare.png)
+
+> Later builds (1.1.5–1.1.7) refine descent/landing speed handling and have been compiled and partially flight-tested; the natural-terrain touchdown above was verified with the 1.1.4 flare build. Re-test after changing flight-control parameters.
+
+## Build from source
+
+JDK 21 is required. Use the Gradle wrapper:
 
 ```bash
 ./gradlew build
 ```
 
-产物在 `build/libs/faautoroute-1.1.7+mc1.21.1.jar`。仓库里也放了一份预编译版本：`dist/faautoroute-1.1.7+mc1.21.1.jar`。
+The jar is written to `build/libs/faautoroute-<version>+mc1.21.1.jar`.
 
-开发环境首次构建需要下载 Minecraft、Mappings 和依赖。若网络需要代理，可在 `GRADLE_USER_HOME/gradle.properties` 中配置：
+The first build downloads Minecraft, mappings, and dependencies. If your network needs a proxy, configure it in your Gradle user home (`GRADLE_USER_HOME/gradle.properties`).
 
-```properties
-systemProp.http.proxyHost=127.0.0.1
-systemProp.http.proxyPort=7897
-systemProp.https.proxyHost=127.0.0.1
-systemProp.https.proxyPort=7897
-```
+## Project layout
 
-## 项目结构
-
-```
+```text
 src/main/java/com/water500t/faautoroute/
-  AutoRouteClient.java     客户端入口、按键、FlightAssistant 总线捕获
-  AutoRouteCommands.java   /autoroute 命令树
-  RoutePlanner.java        多段地形采样与航点生成
-  RoutePlannerScreen.java  主 GUI
-  WaypointListScreen.java  途经点管理界面
-  XaeroWaypointScreen.java Xaero 航点选择器
-  XaeroIntegration.java    Xaero 地图联动（反射调用第三方航点 API）
-  RouteOptions.java        规划参数
-  RoutePoint.java          途经点
-  RouteResult.java         规划结果与预览数据
+  AutoRouteClient.java      Client entrypoint, keybind, FlightAssistant bus hook
+  AutoRouteCommands.java    /autoroute command tree
+  RoutePlanner.java         Terrain sampling, route and approach generation
+  RoutePlannerScreen.java   Main GUI
+  WaypointListScreen.java   Via-point manager
+  XaeroWaypointScreen.java  Xaero waypoint picker
+  XaeroIntegration.java     Xaero third-party waypoint bridge (reflection)
+  RouteOptions.java         Planning options
+  RoutePoint.java           Via point
+  RouteResult.java          Planning result / preview data
   RoutePlanningException.java
-src/main/resources/assets/faautoroute/lang/  中英文翻译
+src/main/resources/assets/faautoroute/lang/   English / Chinese translations
 ```
 
-## 许可
+## License
 
-MIT。FlightAssistant 本身使用 LGPL-3.0，本项目仅通过其公开/可访问 API 交互，不包含其代码。
+MIT. FlightAssistant itself is licensed under LGPL-3.0; this project interacts with its public/accessible API and does not include its code.

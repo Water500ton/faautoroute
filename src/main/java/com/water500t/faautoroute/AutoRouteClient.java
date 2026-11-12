@@ -28,10 +28,9 @@ public final class AutoRouteClient implements ClientModInitializer {
     private static KeyMapping openPlannerKey;
     private static final double FINALIZE_RANGE = 512.0;
     private static final double MIN_FINALIZE_RANGE = 48.0;
-    private static final AutoFlightComputer.VerticalMode FLARE_MODE =
-            new VerticalSpeedVerticalMode(-1.5, Component.translatable("mode.faautoroute.flare"));
-    private static final AutoFlightComputer.VerticalMode LANDING_BRAKE_MODE =
-            new VerticalSpeedVerticalMode(1.0, Component.translatable("mode.faautoroute.landing_brake"));
+    private static final LandingLaw LANDING_LAW = new LandingLaw(LandingLaw.Config.DEFAULT);
+    private static final java.util.Map<Long, AutoFlightComputer.VerticalMode> VERTICAL_MODE_CACHE =
+            new java.util.HashMap<>();
 
     @Override
     public void onInitializeClient() {
@@ -51,6 +50,7 @@ public final class AutoRouteClient implements ClientModInitializer {
             }
             syncPlanModes();
             tickPendingLanding(client);
+            FlightTelemetry.tick(client);
         });
     }
 
@@ -64,6 +64,7 @@ public final class AutoRouteClient implements ClientModInitializer {
 
     public static void setLastResult(RouteResult result) {
         lastResult = result;
+        LANDING_LAW.reset();
         if (result == null) {
             pendingLanding = null;
         }
@@ -78,6 +79,7 @@ public final class AutoRouteClient implements ClientModInitializer {
         try {
             AutoFlightComputer autoflight = bus.getAutoflight();
             if (!autoflight.getAutopilot()) {
+                LANDING_LAW.reset();
                 return;
             }
             FlightPlanComputer plan = bus.getPlan();
@@ -87,12 +89,28 @@ public final class AutoRouteClient implements ClientModInitializer {
             if (thrust != null) {
                 autoflight.setSelectedThrustMode(thrust);
             }
-            if (shouldBrakeLanding(plan)) {
-                autoflight.setSelectedVerticalMode(LANDING_BRAKE_MODE);
-            } else if (shouldFlare(plan)) {
-                autoflight.setSelectedVerticalMode(FLARE_MODE);
-            } else if (vertical != null) {
-                autoflight.setSelectedVerticalMode(vertical);
+
+            LandingLaw.State landingState = sampleLandingState(plan);
+            LandingLaw.Decision decision = landingState == null
+                    ? new LandingLaw.Decision(LandingLaw.Action.NONE, 0.0, false)
+                    : LANDING_LAW.evaluate(landingState);
+
+            if (decision.releaseAutopilot()) {
+                autoflight.setSelectedVerticalMode(modeFor(LandingLaw.Action.ROLLOUT, 0.0));
+                autoflight.setAutoThrust(false, false);
+                autoflight.setAutoPilot(false, false);
+                LANDING_LAW.reset();
+                return;
+            }
+
+            switch (decision.action()) {
+                case BRAKE, FLARE, ROLLOUT -> autoflight.setSelectedVerticalMode(
+                        modeFor(decision.action(), decision.targetVerticalSpeed()));
+                default -> {
+                    if (vertical != null) {
+                        autoflight.setSelectedVerticalMode(vertical);
+                    }
+                }
             }
             if (lateral != null) {
                 autoflight.setSelectedLateralMode(lateral);
@@ -102,43 +120,43 @@ public final class AutoRouteClient implements ClientModInitializer {
         }
     }
 
-    private static boolean shouldBrakeLanding(FlightPlanComputer plan) {
-        Minecraft client = Minecraft.getInstance();
-        if (client.player == null || client.level == null || plan.getArrivalData().isDefault()
-                || client.player.onGround()) {
-            return false;
-        }
-        FlightPlanComputer.ArrivalData arrival = plan.getArrivalData();
-        double distance = Math.hypot(client.player.getX() - arrival.getCoordinatesX(),
-                client.player.getZ() - arrival.getCoordinatesZ());
-        int x = Mth.floor(client.player.getX());
-        int z = Mth.floor(client.player.getZ());
-        if (!client.level.getChunkSource().hasChunk(x >> 4, z >> 4)) {
-            return false;
-        }
-        int ground = client.level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        double aboveGround = client.player.getY() - ground;
-        double horizontalSpeed = Math.hypot(client.player.getDeltaMovement().x,
-                client.player.getDeltaMovement().z) * 20.0;
-        return distance < 120.0 && aboveGround < 25.0 && horizontalSpeed > 12.0;
-    }
-
-    private static boolean shouldFlare(FlightPlanComputer plan) {
+    /** Snapshot the aircraft state the landing law needs, or null when unavailable. */
+    private static LandingLaw.State sampleLandingState(FlightPlanComputer plan) {
         Minecraft client = Minecraft.getInstance();
         if (client.player == null || client.level == null || plan.getArrivalData().isDefault()) {
-            return false;
+            return null;
         }
         FlightPlanComputer.ArrivalData arrival = plan.getArrivalData();
-        double distance = Math.hypot(client.player.getX() - arrival.getCoordinatesX(),
-                client.player.getZ() - arrival.getCoordinatesZ());
         int x = Mth.floor(client.player.getX());
         int z = Mth.floor(client.player.getZ());
         if (!client.level.getChunkSource().hasChunk(x >> 4, z >> 4)) {
-            return false;
+            return null;
         }
         int ground = client.level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
-        double aboveGround = client.player.getY() - ground;
-        return distance < 80.0 && aboveGround < 18.0 && client.player.getDeltaMovement().y < 0.0;
+        double horizontalSpeed = Math.hypot(client.player.getDeltaMovement().x,
+                client.player.getDeltaMovement().z) * 20.0;
+        return new LandingLaw.State(
+                client.player.getY() - ground,
+                client.player.getDeltaMovement().y * 20.0,
+                horizontalSpeed,
+                Math.hypot(client.player.getX() - arrival.getCoordinatesX(),
+                        client.player.getZ() - arrival.getCoordinatesZ()),
+                client.player.onGround());
+    }
+
+    /** Cached vertical-speed mode so the tick loop does not allocate one per frame. */
+    private static AutoFlightComputer.VerticalMode modeFor(LandingLaw.Action action, double target) {
+        long key = (long) action.ordinal() << 32 | Math.round(target * 100.0) & 0xFFFFFFFFL;
+        return VERTICAL_MODE_CACHE.computeIfAbsent(key, ignored -> new VerticalSpeedVerticalMode(
+                target, Component.translatable(labelFor(action))));
+    }
+
+    private static String labelFor(LandingLaw.Action action) {
+        return switch (action) {
+            case BRAKE -> "mode.faautoroute.landing_brake";
+            case FLARE -> "mode.faautoroute.flare";
+            default -> "mode.faautoroute.rollout";
+        };
     }
 
     /** Engage AP and AT after forcing the selected modes onto the loaded flight plan. */

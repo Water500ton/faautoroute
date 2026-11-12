@@ -105,5 +105,6 @@
   "warning.faautoroute.holding_descent": "直线距离不足以完成下降，已在目标上空加入盘旋下降，再进入最后进近。",
   "mode.faautoroute.flare": "拉平",
   "mode.faautoroute.descent_limit": "限速下降",
-  "mode.faautoroute.landing_brake": "接地拉平减速"
+  "mode.faautoroute.landing_brake": "接地拉平减速",
+  "mode.faautoroute.rollout": "着陆滑跑"
 }

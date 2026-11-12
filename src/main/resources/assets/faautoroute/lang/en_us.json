@@ -105,5 +105,6 @@
   "warning.faautoroute.holding_descent": "Not enough straight-line distance to descend; inserted a holding pattern to lose altitude before final approach.",
   "mode.faautoroute.flare": "Flare",
   "mode.faautoroute.descent_limit": "Descent limited",
-  "mode.faautoroute.landing_brake": "Landing brake"
+  "mode.faautoroute.landing_brake": "Landing brake",
+  "mode.faautoroute.rollout": "Rollout"
 }

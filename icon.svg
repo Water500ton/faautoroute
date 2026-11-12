@@ -87,13 +87,32 @@
     <circle cx="420" cy="148" r="24" fill="#07111f" stroke="#fb7185" stroke-width="8"/>
     <circle cx="420" cy="148" r="8" fill="#fecdd3"/>
 
-    <!-- paper plane: flying up the route -->
-    <g transform="translate(322 245) rotate(-34)">
-      <path d="M0 -54 L58 48 L0 25 L-50 48 Z" fill="url(#wing)" stroke="#e0f2fe" stroke-width="2"/>
-      <path d="M0 -54 L58 48 L0 25 Z" fill="#f8fafc"/>
-      <path d="M0 -54 L-50 48 L0 25 Z" fill="#7dd3fc"/>
-      <path d="M0 25 L-50 48 L-18 20 Z" fill="#38bdf8"/>
-      <path d="M0 -54 L0 25" stroke="#0ea5e9" stroke-width="2.5" opacity="0.55"/>
+    <!-- elytra wings -->
+    <g transform="translate(310 250) rotate(-14)">
+      <!-- left wing -->
+      <path d="M-8 42 C-44 18 -108 -30 -154 -22 C-152 4 -122 34 -62 56 C-34 66 -14 60 -8 52 Z"
+            fill="#e0f2fe" stroke="#082f49" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M-8 42 C-44 18 -108 -30 -154 -22 C-152 4 -122 34 -62 56 C-34 66 -14 60 -8 52 Z"
+            fill="url(#wing)" opacity="0.55"/>
+      <path d="M-10 42 C-48 30 -106 4 -148 -16" fill="none" stroke="#0369a1" stroke-width="3.4" opacity="0.65"/>
+      <path d="M-10 50 C-46 50 -80 50 -108 42" fill="none" stroke="#0369a1" stroke-width="2.8" opacity="0.50"/>
+      <path d="M-26 58 C-50 58 -76 52 -94 44" fill="none" stroke="#075985" stroke-width="2.4" opacity="0.36"/>
+
+      <!-- right wing -->
+      <path d="M8 42 C44 18 108 -30 154 -22 C152 4 122 34 62 56 C34 66 14 60 8 52 Z"
+            fill="#e0f2fe" stroke="#082f49" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M8 42 C44 18 108 -30 154 -22 C152 4 122 34 62 56 C34 66 14 60 8 52 Z"
+            fill="url(#wing)" opacity="0.55"/>
+      <path d="M10 42 C48 30 106 4 148 -16" fill="none" stroke="#0369a1" stroke-width="3.4" opacity="0.65"/>
+      <path d="M10 50 C46 50 80 50 108 42" fill="none" stroke="#0369a1" stroke-width="2.8" opacity="0.50"/>
+      <path d="M26 58 C50 58 76 52 94 44" fill="none" stroke="#075985" stroke-width="2.4" opacity="0.36"/>
+
+      <!-- split between the elytra shells -->
+      <path d="M-12 44 L0 34 L12 44 L0 55 Z" fill="#07111f" opacity="0.92"/>
+      <!-- center hinge -->
+      <path d="M-12 52 C-6 45 6 45 12 52 L8 62 L0 68 L-8 62 Z"
+            fill="#f8fafc" stroke="#082f49" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M0 50 L0 64" stroke="#7dd3fc" stroke-width="3" opacity="0.6"/>
     </g>
 
     <!-- heading ticks -->

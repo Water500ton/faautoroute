@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "faautoroute",
+  "version": "${version}",
+  "name": "FlightAssistant AutoRoute",
+  "description": "Terrain-aware automatic flight planning for FlightAssistant.",
+  "authors": [
+    "Water500t"
+  ],
+  "contact": {},
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.water500t.faautoroute.AutoRouteClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.10",
+    "minecraft": ">=1.21 <1.21.2",
+    "java": ">=21",
+    "fabric-api": "*",
+    "flightassistant": ">=3.0.0",
+    "architectury": "*"
+  },
+  "icon": "assets/faautoroute/icon.png",
+  "recommends": {
+    "xaerominimap": "*",
+    "xaeroworldmap": "*"
+  }
+}

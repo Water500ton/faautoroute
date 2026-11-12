@@ -1,0 +1,60 @@
+plugins {
+    id 'fabric-loom' version '1.14.6'
+    id 'maven-publish'
+}
+
+version = "${project.mod_version}+mc${project.minecraft_version}"
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    maven { name = 'Architectury'; url = 'https://maven.architectury.dev' }
+    maven { name = 'Xander Maven'; url = 'https://maven.isxander.dev/releases' }
+    maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+    // FlightAssistant API (compile only; not bundled)
+    modCompileOnly "maven.modrinth:flightassistant:3.0.1+mc1.21.1-fabric"
+    modCompileOnly "dev.isxander:yet-another-config-lib:${project.yacl_version}"
+    modLocalRuntime "maven.modrinth:flightassistant:3.0.1+mc1.21.1-fabric"
+
+    // FlightAssistant's runtime dependencies
+    modImplementation "dev.architectury:architectury-fabric:${project.architectury_version}"
+    modLocalRuntime "net.fabricmc:fabric-language-kotlin:${project.flk_version}"
+    modLocalRuntime "dev.isxander:yet-another-config-lib:${project.yacl_version}"
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand 'version': project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+    from('LICENSE') {
+        rename { "${it}_${project.base.archivesName.get()}" }
+    }
+}

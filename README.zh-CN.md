@@ -8,6 +8,8 @@
 
 > 不是 FlightAssistant 官方项目，也不修改服务端。所有规划都在客户端完成。
 
+> **Vibecoding 项目** —— 本项目主要由 AI 辅助的“vibecoding”方式完成。代码、文档和飞行行为可能存在错误，使用前请自行审查和测试。
+
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62b47a)
 ![Fabric](https://img.shields.io/badge/Fabric-0.16.10%2B-dbd0b4)
 ![License](https://img.shields.io/badge/License-MIT-blue)

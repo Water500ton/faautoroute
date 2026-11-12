@@ -8,6 +8,8 @@ A client-side **Minecraft 1.21.1 / Fabric** mod that plans terrain-aware routes 
 
 > Not an official FlightAssistant project. Everything runs on the client; no server-side changes are required.
 
+> **Vibecoding project** — this project was built primarily through AI-assisted “vibecoding”. Code, documentation, and flight behavior may contain mistakes; review and test before relying on it.
+
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62b47a)
 ![Fabric](https://img.shields.io/badge/Fabric-0.16.10%2B-dbd0b4)
 ![License](https://img.shields.io/badge/License-MIT-blue)

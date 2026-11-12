@@ -128,22 +128,6 @@ Test in creative mode or a safe area first. Autopilot is **off by default**; it 
 
 Auto-land is not available in the Nether: the vanilla heightmap returns the bedrock roof, so the mod only plans overflight routes there.
 
-## Tested
-
-Validated in a separate Minecraft 1.21.1 / Fabric client instance:
-
-- `F8` opens the planner; the GUI fits compact windows.
-- `/autoroute 1000 1000` produced and loaded a plan (3 waypoints, cruise `Y=213`, distance 1411 blocks).
-- Unloaded-chunk warnings and conservative cruise altitude work.
-- `Waypoints → Add current` adds the current X/Z as a via point.
-- Xaero temporary waypoints (`AR START`, `AR 1`, `AR 2`, `AR 3`) appear on the map.
-- Auto-land, holding descent, autopilot, and auto-throttle engage on a loaded plan.
-- A natural-terrain landing with the flare build touched down at `1273, 76, 1627` for target `1273, 1655` — about 28 blocks short, at zero ground speed and with full health. No artificial platform was used.
-
-![Natural-terrain landing with flare](docs/natural-landing-flare.png)
-
-> Later builds (1.1.5–1.1.7) refine descent/landing speed handling and have been compiled and partially flight-tested; the natural-terrain touchdown above was verified with the 1.1.4 flare build. Re-test after changing flight-control parameters.
-
 ## Build from source
 
 JDK 21 is required. Use the Gradle wrapper:
